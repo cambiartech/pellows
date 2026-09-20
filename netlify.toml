@@ -4,5 +4,7 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # Non-secrets that often mirror .env.example / build output
+  SECRETS_SCAN_OMIT_KEYS = "CRYPTO_DEFAULT_ASSET,BANK_RAIL_BANK_NAME,BANK_RAIL_ACCOUNT_NAME,CARD_RAIL_PROVIDER,PELLOWS_USE_LLM,MODEL_API_MODEL,WHATSAPP_VERIFY_TOKEN,NEXT_PUBLIC_WHATSAPP_NUMBER"
 
 # Next.js runtime is auto-detected on Netlify (OpenNext). No pinned plugin needed.
