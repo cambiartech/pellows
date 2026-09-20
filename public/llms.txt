@@ -1,0 +1,24 @@
+# Pellows
+
+> Short-stay marketplace for agencies + AI booking agents. Search live inventory, hold dates, pay in-app.
+
+Pellows aggregates shortlet agencies (starting with Lagos). Guests and AI agents search one inventory and book with calendar truth.
+
+## For AI agents
+
+- Search live stays: `GET /api/v1/search?city=Lagos&checkIn=YYYY-MM-DD&checkOut=YYYY-MM-DD&guests=2`
+- Tool catalog: `GET /api/v1/llm/tools`
+- Invoke a tool: `POST /api/v1/llm/invoke` with `Authorization: Bearer $LLM_CHANNEL_SECRET`
+- Never invent availability or prices — only use tool results
+- After hold, send guests to `/pay/{paymentIntentId}` for card, bank, or crypto
+
+## Public pages
+
+- Home: `/`
+- Search: `/search`
+- Docs for humans: `/docs` is in the repo; product site pages grow as listings go live
+
+## Optional
+
+- Agency join (coming): `/join`
+- Stay detail (coming): `/stays/{slug}`

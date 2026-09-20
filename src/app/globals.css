@@ -1,26 +1,308 @@
 @import "tailwindcss";
 
+/**
+ * Pellows design tokens
+ * Craft borrowed from Dimension (Refero): medium-weight display,
+ * hairline borders, frosted surfaces, generous section rhythm.
+ * Brand adapted for hospitality — light linen canvas, sea teal, dawn accent.
+ * Not a dark SaaS clone.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surfaces */
+  --canvas: #efebe3;
+  --surface: #f7f4ee;
+  --surface-elevated: rgba(255, 255, 255, 0.72);
+  --ink: #161412;
+  --ink-soft: #3d3933;
+  --muted: #6e6860;
+  --hairline: rgba(22, 20, 18, 0.12);
+  --hairline-strong: rgba(22, 20, 18, 0.2);
+
+  /* Brand */
+  --sea: #0b5552;
+  --sea-deep: #083f3d;
+  --dawn: #d4a574;
+  --foam: #e8f2f1;
+
+  /* Shape — Dimension-inspired */
+  --radius-ui: 10px;
+  --radius-panel: 24px;
+  --radius-pill: 9999px;
+
+  /* Rhythm */
+  --section-gap: clamp(4rem, 8vw, 5rem);
+  --content-max: 72rem;
+
+  /* Type scale (minor third ~1.2 from 16) */
+  --text-caption: 0.8125rem;
+  --text-body: 1rem;
+  --text-sub: 1.125rem;
+  --text-h-sm: 1.5rem;
+  --text-h: 2.25rem;
+  --text-h-lg: 3rem;
+  --text-display: clamp(3.25rem, 8vw, 4.5rem);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), ui-serif, Georgia, serif;
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-sea: var(--sea);
+  --color-dawn: var(--dawn);
+  --color-foam: var(--foam);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.text-display {
+  font-size: var(--text-display);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+.text-heading-lg {
+  font-size: var(--text-h-lg);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.text-heading {
+  font-size: var(--text-h);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.hairline {
+  border: 1px solid var(--hairline);
+}
+
+.surface-frost {
+  background: var(--surface-elevated);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--hairline);
+}
+
+.btn-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  padding: 0.85rem 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: opacity 180ms ease, transform 180ms ease, background 180ms ease;
+}
+
+.btn-pill:hover {
+  opacity: 0.92;
+}
+
+.btn-pill:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background: var(--sea);
+  color: #f7f4ee;
+}
+
+.btn-primary:hover {
+  background: var(--sea-deep);
+  opacity: 1;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--hairline-strong);
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.55);
+  opacity: 1;
+}
+
+.field {
+  width: 100%;
+  border-radius: var(--radius-ui);
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.7rem 0.9rem;
+  font-size: 0.9375rem;
+  outline: none;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.field:focus {
+  border-color: var(--sea);
+  background: #fff;
+}
+
+/* Auth / join — Dimension + Airbnb crisp fields */
+.auth-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+
+.auth-input {
+  width: 100%;
+  border-radius: 16px;
+  border: 1.5px solid rgba(22, 20, 18, 0.28);
+  background: #fff;
+  padding: 0.95rem 1.15rem;
+  font-size: 1rem;
+  line-height: 1.35;
+  color: var(--ink);
+  outline: none;
+  box-shadow: 0 1px 2px rgba(22, 20, 18, 0.04);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.auth-input::placeholder {
+  color: #a39e95;
+}
+
+.auth-input:hover {
+  border-color: rgba(22, 20, 18, 0.32);
+}
+
+.auth-input:focus {
+  border-color: var(--sea);
+  box-shadow: 0 0 0 4px rgba(11, 85, 82, 0.14);
+}
+
+.auth-input-error {
+  border-color: #b42318;
+  background: #fff8f7;
+}
+
+.auth-input-error:focus {
+  border-color: #b42318;
+  box-shadow: 0 0 0 4px rgba(180, 35, 24, 0.12);
+}
+
+.auth-input-ok {
+  border-color: rgba(11, 85, 82, 0.55);
+  padding-right: 2.75rem;
+}
+
+.auth-input-has-toggle {
+  padding-right: 3rem;
+}
+
+.auth-eye {
+  position: absolute;
+  right: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  color: var(--muted);
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.auth-eye:hover {
+  color: var(--ink);
+  background: rgba(22, 20, 18, 0.05);
+}
+
+.auth-eye:focus-visible {
+  outline: 2px solid var(--sea);
+  outline-offset: 1px;
+}
+
+.auth-error {
+  margin-top: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #b42318;
+}
+
+.auth-hint {
+  margin-top: 0.4rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.auth-shell {
+  min-height: calc(100dvh - 5.5rem);
+  display: grid;
+  align-items: stretch;
+}
+
+@media (min-width: 960px) {
+  .auth-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.auth-visual {
+  position: relative;
+  display: none;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 80% 20%, rgba(232, 242, 241, 0.95), transparent 55%),
+    linear-gradient(160deg, #0b5552 0%, #0a3d3b 48%, #16201e 100%);
+}
+
+@media (min-width: 960px) {
+  .auth-visual {
+    display: block;
+  }
+}
+
+.auth-step-dot {
+  height: 4px;
+  flex: 1;
+  border-radius: 9999px;
+  background: rgba(22, 20, 18, 0.1);
+  transition: background 200ms ease;
+}
+
+.auth-step-dot[data-active="true"] {
+  background: var(--sea);
+}
+
+.auth-step-dot[data-done="true"] {
+  background: rgba(11, 85, 82, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

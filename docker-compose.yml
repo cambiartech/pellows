@@ -1,0 +1,16 @@
+# Pellows local Postgres
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: pellows
+      POSTGRES_PASSWORD: pellows
+      POSTGRES_DB: pellows
+    volumes:
+      - pellows_pg:/var/lib/postgresql/data
+
+volumes:
+  pellows_pg:

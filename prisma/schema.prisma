@@ -1,0 +1,323 @@
+// Pellows — marketplace + payments + agent edge
+// Calendar is truth. Search is sacred. Payments are ours.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ListingKind {
+  STAY
+  RENTAL
+  EXPERIENCE
+}
+
+enum ListingStatus {
+  DRAFT
+  LIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum CalendarSource {
+  MANUAL
+  HOLD
+  BOOKING
+  ICAL
+  REALCORP
+  OTA
+}
+
+enum BookingStatus {
+  INQUIRY
+  HOLD
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
+enum BookingChannel {
+  WEB
+  WHATSAPP
+  LLM_CHATGPT
+  LLM_GEMINI
+  LLM_OTHER
+  API
+}
+
+enum PaymentMethod {
+  CARD
+  BANK_RAIL
+  CRYPTO
+}
+
+enum PaymentStatus {
+  REQUIRES_ACTION
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum LedgerEntryType {
+  GUEST_CHARGE
+  PLATFORM_FEE
+  HOST_PAYABLE
+  REFUND
+  CRYPTO_DEPOSIT
+  BANK_DEPOSIT
+  ADJUSTMENT
+}
+
+model Host {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  /// Agency / business display name
+  businessName String?
+  phone        String?
+  whatsapp     String?
+  passwordHash String?
+  verified     Boolean  @default(false)
+  /// OWNER of this workspace, or OPS staff of agencyOwnerId
+  role         String   @default("OWNER") // OWNER | OPS
+  /// If set, this login is staff under another Host's agency
+  agencyOwnerId String?
+  /// Public commission shown to agencies (basis points, 1000 = 10%)
+  commissionBps Int     @default(1000)
+  /// Short terms blurb shown in workspace
+  termsNote    String?
+  /// Agency API key (hashed); prefix stored for display
+  apiKeyHash   String?
+  apiKeyPrefix String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  listings Listing[]
+  payouts  HostPayoutAccount[]
+  sessions AgencySession[]
+  invites  AgencyInvite[]
+  agencyOwner Host?  @relation("AgencyStaff", fields: [agencyOwnerId], references: [id])
+  staff       Host[] @relation("AgencyStaff")
+}
+
+model AgencyInvite {
+  id        String    @id @default(cuid())
+  hostId    String
+  email     String
+  name      String?
+  role      String    @default("OPS") // OPS
+  token     String    @unique
+  expiresAt DateTime
+  acceptedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  host Host @relation(fields: [hostId], references: [id], onDelete: Cascade)
+
+  @@index([hostId])
+  @@index([email])
+}
+
+model AgencySession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  hostId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  host Host @relation(fields: [hostId], references: [id], onDelete: Cascade)
+
+  @@index([hostId])
+  @@index([expiresAt])
+}
+
+model Guest {
+  id           String   @id @default(cuid())
+  email        String?  @unique
+  phone        String?  @unique
+  name         String?
+  whatsappId   String?  @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  bookings      Booking[]
+  conversations Conversation[]
+}
+
+model Listing {
+  id             String        @id @default(cuid())
+  hostId         String
+  kind           ListingKind   @default(STAY)
+  status         ListingStatus @default(DRAFT)
+  title          String
+  slug           String        @unique
+  description    String        @db.Text
+  city           String
+  country        String
+  neighbourhood  String?
+  timezone       String        @default("UTC")
+  currency       String        @default("USD")
+  /// Nightly for STAY/RENTAL; per-person or flat for EXPERIENCE (see priceUnit)
+  basePrice      Int
+  cleaningFee    Int           @default(0)
+  priceUnit      String        @default("NIGHT") // NIGHT | WEEK | PERSON | FLAT
+  bedrooms       Int?
+  bathrooms      Float?
+  maxGuests      Int           @default(2)
+  amenities      String[]      @default([])
+  photoUrls      String[]      @default([])
+  tourUrl        String?
+  lat            Float?
+  lng            Float?
+  /// Realcorp shortlet unit id when linked
+  realcorpUnitId String?
+  /// Inbound OTA calendar (Airbnb / Booking / Vrbo iCal)
+  icalUrl        String?
+  icalSyncedAt   DateTime?
+  /// airbnb | booking | realcorp | csv | manual | url
+  sourcePlatform String?
+  externalListingUrl String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  host     Host            @relation(fields: [hostId], references: [id])
+  blocks   CalendarBlock[]
+  bookings Booking[]
+
+  @@index([status, kind])
+  @@index([city, country])
+  @@index([status, city, country, kind])
+  @@index([lat, lng])
+}
+
+model CalendarBlock {
+  id          String         @id @default(cuid())
+  listingId   String
+  /// Inclusive YYYY-MM-DD stored as date
+  startDate   DateTime       @db.Date
+  /// Exclusive end (iCal DTEND style)
+  endDate     DateTime       @db.Date
+  source      CalendarSource
+  bookingId   String?
+  externalUid String?
+  summary     String?
+  createdAt   DateTime       @default(now())
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, startDate, endDate])
+}
+
+model Booking {
+  id              String         @id @default(cuid())
+  listingId       String
+  guestId         String?
+  status          BookingStatus  @default(INQUIRY)
+  channel         BookingChannel @default(WEB)
+  guestName       String
+  guestPhone      String?
+  guestEmail      String?
+  checkIn         DateTime       @db.Date
+  checkOut        DateTime       @db.Date
+  guests          Int            @default(1)
+  currency        String
+  /// Minor units (cents)
+  subtotal        Int
+  fees            Int            @default(0)
+  total           Int
+  holdExpiresAt   DateTime?
+  notes           String?
+  realcorpResId   String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  listing  Listing         @relation(fields: [listingId], references: [id])
+  guest    Guest?          @relation(fields: [guestId], references: [id])
+  payments PaymentIntent[]
+
+  @@index([listingId, status])
+  @@index([status, holdExpiresAt])
+}
+
+model PaymentIntent {
+  id              String        @id @default(cuid())
+  bookingId       String
+  method          PaymentMethod
+  status          PaymentStatus @default(REQUIRES_ACTION)
+  currency        String
+  amount          Int
+  /// Card processor reference / bank transfer ref / crypto tx watch id
+  providerRef     String?
+  /// Guest-facing instructions (VA number, crypto address, checkout URL)
+  instructions    Json?
+  metadata        Json?
+  succeededAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  booking Booking             @relation(fields: [bookingId], references: [id])
+  ledger  PaymentLedgerEntry[]
+
+  @@index([bookingId])
+  @@index([status, method])
+  @@index([providerRef])
+}
+
+model PaymentLedgerEntry {
+  id              String          @id @default(cuid())
+  paymentIntentId String
+  type            LedgerEntryType
+  currency        String
+  amount          Int
+  /// Positive = credit to this account bucket
+  account         String
+  memo            String?
+  createdAt       DateTime        @default(now())
+
+  paymentIntent PaymentIntent @relation(fields: [paymentIntentId], references: [id])
+
+  @@index([paymentIntentId])
+}
+
+model HostPayoutAccount {
+  id        String  @id @default(cuid())
+  hostId    String
+  kind      String // BANK | CRYPTO_WALLET
+  label     String
+  details   Json
+  isDefault Boolean @default(false)
+
+  host Host @relation(fields: [hostId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  guestId   String?
+  channel   String // WHATSAPP | WEB | LLM
+  externalId String  @unique // wa phone / session id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guest    Guest?         @relation(fields: [guestId], references: [id])
+  messages AgentMessage[]
+}
+
+model AgentMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String // user | assistant | tool
+  content        String   @db.Text
+  toolName       String?
+  toolPayload    Json?
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}

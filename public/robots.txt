@@ -1,0 +1,40 @@
+User-Agent: *
+Allow: /
+Allow: /search
+Allow: /stays/
+Allow: /join
+Allow: /login
+Allow: /api/v1/search
+Allow: /api/v1/llm/tools
+Allow: /llms.txt
+
+# Agency ops — no need to index
+Disallow: /host
+Disallow: /host/
+Disallow: /pay/
+Disallow: /chat
+Disallow: /book/
+Disallow: /api/v1/bookings
+Disallow: /api/v1/payments
+Disallow: /api/webhooks/
+
+# AI crawlers — welcome (inventory is meant to be discovered)
+User-Agent: GPTBot
+Allow: /
+
+User-Agent: ChatGPT-User
+Allow: /
+
+User-Agent: Google-Extended
+Allow: /
+
+User-Agent: anthropic-ai
+Allow: /
+
+User-Agent: ClaudeBot
+Allow: /
+
+User-Agent: PerplexityBot
+Allow: /
+
+Sitemap: https://pellows.app/sitemap.xml
