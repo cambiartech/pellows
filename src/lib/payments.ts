@@ -22,6 +22,7 @@ function bankInstructions(amount: number, currency: string, reference: string) {
   };
 }
 
+
 function cryptoInstructions(amount: number, currency: string, reference: string) {
   const asset = process.env.CRYPTO_DEFAULT_ASSET || "stablecoin";
   return {

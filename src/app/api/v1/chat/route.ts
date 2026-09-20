@@ -49,7 +49,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ reply, conversationId: conversation.id });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Chat failed";
+    console.error("[pellows.chat]", err);
+    const raw = err instanceof Error ? err.message : "Chat failed";
+    const message =
+      /Authentication failed|DATABASE_URL|password authentication/i.test(raw)
+        ? "Database connection failed. Check DATABASE_URL / DIRECT_URL on Netlify (Neon password may have been rotated)."
+        : raw;
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }
