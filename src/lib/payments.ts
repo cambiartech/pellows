@@ -11,8 +11,9 @@ export type CreatePaymentInput = {
 function bankInstructions(amount: number, currency: string, reference: string) {
   return {
     type: "BANK_RAIL" as const,
-    bankName: process.env.BANK_RAIL_BANK_NAME ?? "Pellows Settlement",
-    accountName: process.env.BANK_RAIL_ACCOUNT_NAME ?? "Pellows Limited",
+    // Fallbacks must NOT match Netlify env values (secrets scan).
+    bankName: process.env.BANK_RAIL_BANK_NAME || "Bank",
+    accountName: process.env.BANK_RAIL_ACCOUNT_NAME || "Account holder",
     accountNumber: process.env.BANK_RAIL_ACCOUNT_NUMBER || "PENDING_SETUP",
     amount,
     currency,
@@ -22,15 +23,16 @@ function bankInstructions(amount: number, currency: string, reference: string) {
 }
 
 function cryptoInstructions(amount: number, currency: string, reference: string) {
+  const asset = process.env.CRYPTO_DEFAULT_ASSET || "stablecoin";
   return {
     type: "CRYPTO" as const,
-    asset: process.env.CRYPTO_DEFAULT_ASSET ?? "USDT",
+    asset,
     network: "TRC20",
     address: process.env.CRYPTO_DEPOSIT_ADDRESS || "PENDING_SETUP",
     amount,
     currency,
     reference,
-    memo: `Send USDT. Include reference ${reference} in memo if supported.`,
+    memo: `Send ${asset}. Include reference ${reference} in memo if supported.`,
   };
 }
 
@@ -45,10 +47,7 @@ function cardInstructions(amount: number, currency: string, reference: string) {
     amount,
     currency,
     reference,
-    memo:
-      provider === "stripe"
-        ? "Complete card payment on Pellows checkout (Stripe)."
-        : "Complete card payment on Pellows checkout.",
+    memo: "Complete card payment on Pellows checkout.",
   };
 }
 
