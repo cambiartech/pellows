@@ -3,10 +3,14 @@ import { listWaDebug } from "@/lib/wa-debug";
 
 export const runtime = "nodejs";
 
-/** Recent WhatsApp webhook hits — proves whether Meta is calling us. */
+/** Recent WhatsApp webhook hits (persisted in DB — survives Netlify instances). */
 export async function GET() {
+  const events = await listWaDebug();
   return NextResponse.json({
-    events: listWaDebug(),
-    tip: "Text +1 (555) 178-5378, wait 5s, refresh this URL. If events stay empty, Meta webhook is not subscribed/pointing here.",
+    events,
+    tip:
+      events.length === 0 || events.every((e) => e.method === "GET")
+        ? "Only verify GETs so far. In Meta → Use cases → Customize → Configuration → Webhook → Manage → subscribe messages, then text the test number again."
+        : "Inbound POSTs are reaching Netlify.",
   });
 }
