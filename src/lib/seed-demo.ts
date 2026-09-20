@@ -1,5 +1,5 @@
-import { prisma } from "@/lib/db";
-import { hashPassword } from "@/lib/agency-auth";
+import { prisma } from "./db";
+import { hashPassword } from "./agency-auth";
 
 type ListingSeed = {
   title: string;

@@ -1,66 +1,50 @@
 # Deploy — Netlify + Neon (stable WhatsApp webhook)
 
-**Host:** Netlify (not Vercel).  
-**DB:** Neon Postgres.  
-Skip localtunnel. Skip Neon “hello.ts / neon deploy Functions”.
+**Host:** Netlify. **DB:** Neon Postgres.  
+Skip localtunnel. Skip Neon Functions hello scaffold.
 
 ---
 
 ## 1. Neon connection strings
 
-From Neon console → project → **production** → Connect:
-
 | Env | Which string |
 |-----|----------------|
 | `DATABASE_URL` | **Pooled** (`…-pooler.…`) |
-| `DIRECT_URL` | **Direct** (same host **without** `-pooler`) |
+| `DIRECT_URL` | **Direct** (host **without** `-pooler`) |
 
-Use `?sslmode=require` (drop `channel_binding=require` if Node/`pg` errors).
-
-Push schema once from your laptop:
-
-```bash
-# with Neon URLs in .env.local
-npx prisma db push
-npx tsx prisma/seed.ts
-```
+Use `?sslmode=require` (drop `channel_binding=require`).
 
 ---
 
 ## 2. Netlify
 
-1. [app.netlify.com](https://app.netlify.com) → **Add new site** → Import from Git → `cambiartech/pellows`.
-2. Build: `npm run build` · Publish: `.next` (see `netlify.toml`).
-3. **Site configuration → Environment variables** (Production):
+1. Import `cambiartech/pellows` on [app.netlify.com](https://app.netlify.com).
+2. **`npm run build` already syncs DB:** `prisma generate` → `db push` → **seed 9 LIVE listings** → `next build`.
+3. Env vars (Production):
 
-| Key | Value |
-|-----|--------|
-| `DATABASE_URL` | Neon pooled |
-| `DIRECT_URL` | Neon direct |
-| `APP_URL` | `https://YOUR-SITE.netlify.app` (set after first deploy, then redeploy) |
-| `NEXT_PUBLIC_APP_URL` | same |
-| `CARD_RAIL_PROVIDER` | `stripe` |
-| `STRIPE_SECRET_KEY` | |
-| `STRIPE_PUBLISHABLE_KEY` | |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | |
-| `WHATSAPP_PHONE_NUMBER_ID` | |
-| `WHATSAPP_ACCESS_TOKEN` | |
+| Key | Required |
+|-----|----------|
+| `DATABASE_URL` / `DIRECT_URL` | Neon |
+| `APP_URL` / `NEXT_PUBLIC_APP_URL` | `https://pellows.netlify.app` |
+| `WHATSAPP_PHONE_NUMBER_ID` | **Yes for phone replies** |
+| `WHATSAPP_ACCESS_TOKEN` | **Yes for phone replies** |
 | `WHATSAPP_VERIFY_TOKEN` | `pellows-dev-verify` |
-| `NEXT_PUBLIC_WHATSAPP_NUMBER` | optional |
+| Stripe keys | optional while paused |
 | `PELLOWS_USE_LLM` | `0` |
 
-4. Deploy. Copy the site URL → set `APP_URL` / `NEXT_PUBLIC_APP_URL` → **Clear cache and deploy** again.
+4. After deploy open: **https://pellows.netlify.app/api/v1/admin/status**  
+   - `liveListings` should be **≥ 9**  
+   - `whatsappOutboundReady` should be **true**
+
+### Why /chat said “No live stays”
+`Listing` was empty (Neon screenshot). Conversations from `/chat` still create `Conversation` rows — that is **not** inventory.
+
+### Why phone gets no reply
+Inbound can create conversations; **outbound needs** `WHATSAPP_ACCESS_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` on Netlify. Without them the app dry-runs and never sends WhatsApp.
 
 ---
 
-## 3. Point Meta + Stripe at Netlify
+## 3. Meta webhook
 
-- WhatsApp: `https://YOUR-SITE.netlify.app/api/webhooks/whatsapp`  
-  Verify token: `pellows-dev-verify` · Subscribe: **messages**
-- Stripe: `https://YOUR-SITE.netlify.app/api/webhooks/stripe`
-
----
-
-## Security
-
-If a Neon password was pasted in chat/screenshots, **rotate it** in Neon → Roles → Reset password, then update Netlify env + `.env.local`.
+Callback: `https://pellows.netlify.app/api/webhooks/whatsapp`  
+Verify: `pellows-dev-verify` · Subscribe: **messages**
