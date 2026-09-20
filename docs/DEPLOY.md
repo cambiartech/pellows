@@ -1,91 +1,66 @@
-# Deploy — Vercel + Neon (stable WhatsApp webhook)
+# Deploy — Netlify + Neon (stable WhatsApp webhook)
 
-Skip localtunnel/ngrok. This app is **Next.js on Vercel** with **Neon Postgres**.
-
-Do **not** run the Neon “hello.ts / neon deploy Functions” scaffold — that is a different product. We only need Neon’s **database connection strings**.
+**Host:** Netlify (not Vercel).  
+**DB:** Neon Postgres.  
+Skip localtunnel. Skip Neon “hello.ts / neon deploy Functions”.
 
 ---
 
-## 1. Neon (Postgres)
+## 1. Neon connection strings
 
-1. Open project [rough-sun-58029227](https://console.neon.tech/) (or your Neon dashboard).
-2. Branch **production** → **Connection details**.
-3. Copy:
-   - **Pooled** connection → `DATABASE_URL` (for the app / Prisma adapter)
-   - **Direct** (non-pooled) → `DIRECT_URL` (for `prisma db push` / migrations)
+From Neon console → project → **production** → Connect:
 
-Optional CLI (login once on your machine):
+| Env | Which string |
+|-----|----------------|
+| `DATABASE_URL` | **Pooled** (`…-pooler.…`) |
+| `DIRECT_URL` | **Direct** (same host **without** `-pooler`) |
 
-```bash
-npm i -g neonctl@latest   # or: neon@latest
-neonctl auth
-# Connection string:
-neonctl connection-string rough-sun-58029227 --branch production
-```
+Use `?sslmode=require` (drop `channel_binding=require` if Node/`pg` errors).
 
-Skip `neon skills`, `neon mcp`, `neon config init`, and `neon deploy` unless you intentionally want Neon Functions later.
-
-Locally you can put those URLs in `.env.local` (gitignored) and run:
+Push schema once from your laptop:
 
 ```bash
+# with Neon URLs in .env.local
 npx prisma db push
 npx tsx prisma/seed.ts
 ```
 
 ---
 
-## 2. GitHub
+## 2. Netlify
 
-Repo: [https://github.com/cambiartech/pellows](https://github.com/cambiartech/pellows)
+1. [app.netlify.com](https://app.netlify.com) → **Add new site** → Import from Git → `cambiartech/pellows`.
+2. Build: `npm run build` · Publish: `.next` (see `netlify.toml`).
+3. **Site configuration → Environment variables** (Production):
 
-```bash
-git branch -M main
-git remote add origin https://github.com/cambiartech/pellows.git   # once
-git push -u origin main
-```
-
-Secrets stay out of git (`.env*` ignored; `.env.example` is the template).
-
----
-
-## 3. Vercel
-
-1. [vercel.com/new](https://vercel.com/new) → Import `cambiartech/pellows`.
-2. Framework: Next.js (auto).
-3. **Environment variables** (Production + Preview):
-
-| Key | Notes |
+| Key | Value |
 |-----|--------|
 | `DATABASE_URL` | Neon pooled |
 | `DIRECT_URL` | Neon direct |
-| `APP_URL` | `https://YOUR_PROJECT.vercel.app` |
+| `APP_URL` | `https://YOUR-SITE.netlify.app` (set after first deploy, then redeploy) |
 | `NEXT_PUBLIC_APP_URL` | same |
 | `CARD_RAIL_PROVIDER` | `stripe` |
-| `STRIPE_SECRET_KEY` | from Stripe |
+| `STRIPE_SECRET_KEY` | |
 | `STRIPE_PUBLISHABLE_KEY` | |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | |
-| `WHATSAPP_PHONE_NUMBER_ID` | Meta |
-| `WHATSAPP_ACCESS_TOKEN` | Meta |
+| `WHATSAPP_PHONE_NUMBER_ID` | |
+| `WHATSAPP_ACCESS_TOKEN` | |
 | `WHATSAPP_VERIFY_TOKEN` | `pellows-dev-verify` |
-| `NEXT_PUBLIC_WHATSAPP_NUMBER` | optional display |
+| `NEXT_PUBLIC_WHATSAPP_NUMBER` | optional |
 | `PELLOWS_USE_LLM` | `0` |
 
-4. Deploy. Then run schema once against Neon (local with Neon URLs, or Vercel CLI):
-
-```bash
-DATABASE_URL=… DIRECT_URL=… npx prisma db push
-DATABASE_URL=… npx tsx prisma/seed.ts
-```
-
-5. Meta webhook Callback URL (stable):
-
-`https://YOUR_PROJECT.vercel.app/api/webhooks/whatsapp`  
-Verify token: `pellows-dev-verify` · Subscribe: **messages**
-
-6. Stripe webhook: `https://YOUR_PROJECT.vercel.app/api/webhooks/stripe`
+4. Deploy. Copy the site URL → set `APP_URL` / `NEXT_PUBLIC_APP_URL` → **Clear cache and deploy** again.
 
 ---
 
-## Netlify?
+## 3. Point Meta + Stripe at Netlify
 
-Possible, but slower with Next 16 + Prisma. Prefer **Vercel**. No `netlify.toml` required for this path.
+- WhatsApp: `https://YOUR-SITE.netlify.app/api/webhooks/whatsapp`  
+  Verify token: `pellows-dev-verify` · Subscribe: **messages**
+- Stripe: `https://YOUR-SITE.netlify.app/api/webhooks/stripe`
+
+---
+
+## Security
+
+If a Neon password was pasted in chat/screenshots, **rotate it** in Neon → Roles → Reset password, then update Netlify env + `.env.local`.

@@ -11,7 +11,7 @@ Reusable product & engineering docs. Keep plans here — not scattered in the re
 | [SEO_AI.md](./SEO_AI.md) | Google SEO + AI crawler readiness |
 | [ROADMAP.md](./ROADMAP.md) | Diagrams + Detty workflow |
 | **[CREDENTIALS.md](./CREDENTIALS.md)** | How to get Stripe / bank / crypto / WhatsApp / OTA keys |
-| **[DEPLOY.md](./DEPLOY.md)** | **Vercel + Neon** — stable URL for WhatsApp webhooks |
+| **[DEPLOY.md](./DEPLOY.md)** | **Netlify + Neon** — stable URL for WhatsApp webhooks |
 | [WHATSAPP_AGENT.md](./WHATSAPP_AGENT.md) | **Text Pellows on WA → book** — Meta setup + deploy |
 
 Root `README.md` stays as the runbook (install / APIs / try now).
