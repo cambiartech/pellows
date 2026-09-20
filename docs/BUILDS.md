@@ -107,19 +107,20 @@ Comfy stays for guests = inventory from **wherever agencies already list**. See 
 
 ## Wave 3 — Guest book & pay (seamless) 🟡
 
-- [x] **B3.1** Real **card** rail — Stripe Checkout (`/api/v1/payments/stripe/*` + webhook) 🔒 keys in `.env.local`
-- [ ] **B3.2** Real **bank** rail (virtual account / transfer verify) 🔒
+- [ ] **B3.1** Real **card** rail — **Paystack** for NG merchants (Stripe paused — NG businesses can’t settle via Stripe) 🔒
+- [x] **B3.1b** Stripe Checkout code retained for optional non-NG entity later
+- [ ] **B3.2** Real **bank** rail (Paystack DVA / transfer verify) 🔒
 - [ ] **B3.3** Real **crypto** rail (deposit address + watcher) 🔒
-- [ ] **B3.4** Remove `devConfirm` from production *(card path no longer uses it)*
+- [ ] **B3.4** Remove `devConfirm` from production
 - [ ] **B3.5** Pay receipt + WhatsApp “you’re confirmed” message
 - [x] **B3.6** Concurrent hold safety (Serializable txn + expire stale HOLDs)
-- [x] **B3.7** Cancellation v1 — `POST /api/v1/bookings/:id/cancel` (refunds when Stripe wired)
+- [x] **B3.7** Cancellation v1 — `POST /api/v1/bookings/:id/cancel`
 
 ---
 
-## Wave 4 — Chat & AI agents (distribution) ⬜
+## Wave 4 — Chat & AI agents (distribution) 🟡
 
-- [ ] **B4.1** Meta WhatsApp Cloud API live (WABA tokens + public URL) 🔒
+- [x] **B4.1** Meta WhatsApp Cloud API live (Netlify webhook + `messages` subscribed + published)
 - [ ] **B4.2** Rich WhatsApp messages (buttons: pick stay / pay link)
 - [ ] **B4.3** OpenAPI / MCP hardened for ChatGPT + Gemini
 - [ ] **B4.4** Slack adapter (same tools)

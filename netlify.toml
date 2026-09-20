@@ -1,11 +1,10 @@
 [build]
-  # Generate Prisma client, sync schema, seed LIVE inventory, then Next build.
+  # Schema sync only (prisma db push). Seed is manual — never wipe inventory on deploy.
   command = "npm run build"
   publish = ".next"
 
 [build.environment]
   NODE_VERSION = "22"
-  # Display / config strings are often marked "secret" in the UI by mistake.
   SECRETS_SCAN_OMIT_KEYS = "CRYPTO_DEFAULT_ASSET,BANK_RAIL_BANK_NAME,BANK_RAIL_ACCOUNT_NAME,BANK_RAIL_ACCOUNT_NUMBER,CARD_RAIL_PROVIDER,PELLOWS_USE_LLM,MODEL_API_MODEL,WHATSAPP_VERIFY_TOKEN,NEXT_PUBLIC_WHATSAPP_NUMBER,APP_URL,NEXT_PUBLIC_APP_URL,LLM_CHANNEL_SECRET,CRON_SECRET,ADMIN_SECRET"
   SECRETS_SCAN_OMIT_PATHS = ".netlify,.next,node_modules,docs"
 

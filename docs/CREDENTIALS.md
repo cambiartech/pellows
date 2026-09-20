@@ -1,43 +1,42 @@
 # Credentials & rails — how to get what Pellows needs
 
-Paste secrets into **`.env.local`** only (never commit).  
+Paste secrets into **`.env.local`** / Netlify env only (never commit).  
 See [`.env.example`](../.env.example) for the full key list.
-
-You said you **already have Stripe** — use that for card first. Paystack is optional (Nigeria-friendly alternative).
 
 ---
 
-## 1. Card rail — Stripe (preferred if you have it)
+## Card rail — Nigeria (Stripe paused)
 
-**What we need**
+**Stripe does not onboard Nigerian businesses for receiving payouts** in the usual way. Keep Stripe code for a future foreign entity / diaspora guests if useful, but **do not rely on it for Cambiar/Pellows as an NG merchant.**
+
+### Recommended for Pellows (NG)
+
+| Processor | Best for | Notes |
+|-----------|----------|--------|
+| **[Paystack](https://paystack.com/)** | Default card + local methods | NG-native; ~1.5% + ₦100 local (cap ₦2k); T+1 settlement; Checkout / API. **Wire this next.** |
+| **[Flutterwave](https://flutterwave.com/)** | Pan-Africa / multi-currency | Broader African methods; slightly higher local fees than Paystack. |
+| Bank transfer / virtual account | Guests without cards | Paystack Dedicated Virtual Accounts or Flutterwave transfers — pairs with our `BANK_RAIL` UX. |
+| Crypto (USDT) | Parallel rail | Keep deposit address + memo; settle off-ramp separately. |
+
+**What we need for Paystack**
 
 | Env var | Where |
 |---------|--------|
-| `STRIPE_SECRET_KEY` | Stripe Dashboard → Developers → API keys → Secret key (`sk_…`) |
-| `STRIPE_PUBLISHABLE_KEY` | Same page → Publishable key (`pk_…`) |
-| `STRIPE_WEBHOOK_SECRET` | Developers → Webhooks → endpoint signing secret (`whsec_…`) |
-| `CARD_RAIL_PROVIDER=stripe` | Forces Stripe (auto if `STRIPE_SECRET_KEY` is set) |
+| `PAYSTACK_SECRET_KEY` | [dashboard.paystack.com](https://dashboard.paystack.com) → Settings → API Keys |
+| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | Same page (public) |
+| `CARD_RAIL_PROVIDER=paystack` | Forces Paystack on `/pay` |
+| Webhook URL | `https://pellows.netlify.app/api/webhooks/paystack` *(to build)* |
 
-**How to get them**
+### Stripe (paused / optional)
 
-1. Log in at [https://dashboard.stripe.com](https://dashboard.stripe.com) (or create an account).
-2. Toggle **Test mode** while integrating; switch to live keys for Detty production.
-3. **API keys:** Developers → API keys → copy Secret + Publishable.
-4. **Webhook (production):** Developers → Webhooks → Add endpoint  
-   - URL: `https://YOUR_DOMAIN/api/webhooks/stripe` (we’ll wire this when keys land)  
-   - Events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `checkout.session.completed`  
-   - Copy **Signing secret** → `STRIPE_WEBHOOK_SECRET`.
-5. Put keys in `.env.local`, restart `npm run dev`.
+Only if you later have a supported entity outside NG. Existing Checkout code stays dormant when `CARD_RAIL_PROVIDER=paystack`.
 
-**Notes**
-
-- Guests still pay on **Pellows** `/pay/[id]` — Stripe is the processor under our brand.
-- Test cards: [Stripe testing](https://docs.stripe.com/testing) (`4242…`).
-
-### Optional: Paystack (Nigeria)
-
-1. [https://dashboard.paystack.com](https://dashboard.paystack.com) → Settings → API Keys & Webhooks.
-2. Set `PAYSTACK_SECRET_KEY` and `CARD_RAIL_PROVIDER=paystack`.
+| Env var | Where |
+|---------|--------|
+| `STRIPE_SECRET_KEY` | Stripe Dashboard → API keys |
+| `STRIPE_PUBLISHABLE_KEY` | Same |
+| `STRIPE_WEBHOOK_SECRET` | Webhooks → signing secret |
+| `CARD_RAIL_PROVIDER=stripe` | Only when intentionally using Stripe |
 
 ---
 
