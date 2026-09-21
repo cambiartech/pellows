@@ -21,6 +21,7 @@ const createSchema = z.object({
   bathrooms: z.number().min(0).default(1),
   maxGuests: z.number().int().min(1).default(2),
   amenities: z.array(z.string()).default([]),
+  photoUrls: z.array(z.string().url()).max(12).optional(),
   tourUrl: z.string().url().optional().or(z.literal("")),
   status: z.enum(["DRAFT", "LIVE", "PAUSED"]).default("DRAFT"),
   timezone: z.string().optional(),
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
         maxGuests: body.maxGuests,
         amenities: body.amenities,
         tourUrl: body.tourUrl || null,
-        photoUrls: [],
+        photoUrls: body.photoUrls ?? [],
       },
     });
 

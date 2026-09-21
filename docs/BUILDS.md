@@ -122,20 +122,23 @@ Comfy stays for guests = inventory from **wherever agencies already list**. See 
 ## Wave 4 — Chat & AI agents (distribution) 🟡
 
 - [x] **B4.1** Meta WhatsApp Cloud API live (Netlify webhook + `messages` subscribed + published)
-- [ ] **B4.2** Rich WhatsApp messages (buttons: pick stay / pay link)
+- [x] **B4.2** Rich WhatsApp messages (list pick stay + CTA pay URL)
+- [x] **B4.2b** Typing indicator + welcome buttons (Find a stay / How it works)
+- [x] **B4.2c** Decision layer (rules + Jev hook) — see [EXPERIENCE.md](./EXPERIENCE.md)
+- [ ] **B4.2d** WhatsApp Flows — dates/guests form → live search
 - [ ] **B4.3** OpenAPI / MCP hardened for ChatGPT + Gemini
 - [ ] **B4.4** Slack adapter (same tools)
 - [ ] **B4.5** Email / Gmail-agent adapter
-- [ ] **B4.6** Optional LLM NLU always-on (`OPENAI_API_KEY`) for freer chat
+- [ ] **B4.6** Always-on LLM NLU when key present (default prod)
 
 ---
 
 ## Wave 5 — Guest web experience ⬜
 
-- [ ] **B5.1** Search results with photos + map
+- [x] **B5.1** Search results with photos + USD dual price *(map pin still open — B2.4)*
 - [x] **B5.2** Listing detail page (gallery, amenities, tour) — **public `/stays/[slug]` for SEO**
-- [ ] **B5.3** Book → pay same as chat (one funnel)
-- [ ] **B5.4** Guest “my booking” status page (link from WhatsApp)
+- [x] **B5.3** Book → pay same as chat (hold → `/pay/:id`, no auto `devConfirm`)
+- [x] **B5.4** Guest `/booking/[id]` status page (linked from WhatsApp hold)
 
 ---
 
@@ -143,11 +146,11 @@ Comfy stays for guests = inventory from **wherever agencies already list**. See 
 
 Build so Google **and** AI agents can discover inventory. See [SEO_AI.md](./SEO_AI.md).
 
-- [ ] **B5.10** `robots.txt` — allow public pages; don’t block AI crawlers by default
-- [ ] **B5.11** Dynamic `sitemap.xml` (home, search, stays, join)
+- [x] **B5.10** `robots.txt` — allow public pages; don’t block AI crawlers by default
+- [x] **B5.11** Dynamic `sitemap.xml` (home, search, stays, join)
 - [ ] **B5.12** Metadata + Open Graph on all public pages
 - [x] **B5.13** JSON-LD (`LodgingBusiness` / `Offer`) on stay pages
-- [ ] **B5.14** `/llms.txt` — instructions for AI agents → search/book APIs
+- [x] **B5.14** `/llms.txt` — instructions for AI agents → search/book APIs
 - [ ] **B5.15** Public OpenAPI URL documented for ChatGPT Actions / Gemini
 - [x] **B5.16** Server-render stay pages for crawlers (not client-only empty shells)
 
@@ -180,8 +183,22 @@ Build so Google **and** AI agents can discover inventory. See [SEO_AI.md](./SEO_
 | **3** | B1.10 → B1.14 → B1.23 | Calendar UX + agency API |
 | **4** | B5.10–B5.14 (SEO/AI early) | Crawlers + llms.txt while inventory grows |
 | **5** | B2.1 → B2.3 | Search ranking / typos |
-| **6** | B3.* + B4.1 | Real pay + live WhatsApp |
-| **7** | B5.1–B5.4 + B6.* | Guest web + admin + Realcorp sync |
+| **6** | B3.* keys + webhook | Real Flutterwave pay (locked on credentials) |
+| **7** | B5.3 + B6.* + domains | Funnel polish + Realcorp + DNS cutover |
+
+---
+
+## Pending before Payment keys + Domain cutover
+
+Product experience first — see **[EXPERIENCE.md](./EXPERIENCE.md)** (holiday OS + Jev + Flows).
+
+1. **✅** Typing + welcome + list/CTA + decision layer  
+2. **Next:** WhatsApp Flow (dates/guests) + welcome image header  
+3. **Next:** Always-on LLM when `OPENAI_API_KEY` set  
+4. **Then:** Flutterwave keys + FX  
+5. **Then:** DNS `pellows.stay` / `.xyz`  
+
+Partner APIs / flights / GPT Store — after stay UX feels OWO-grade.
 
 ---
 
@@ -201,12 +218,12 @@ Build so Google **and** AI agents can discover inventory. See [SEO_AI.md](./SEO_
 | Wave | Status |
 |------|--------|
 | 0 Foundation | ✅ Complete |
-| 1 Agency onboarding | 🟡 **Next — start B1.1** |
-| 2 Search scale | ⬜ |
-| 3 Pay rails | ⬜ |
-| 4 Chat / AI distribution | ⬜ |
-| 5 Guest web | ⬜ |
-| 6 Ops / Realcorp | ⬜ |
+| 1 Agency onboarding | 🟡 Imports + LIVE; photo upload still thin |
+| 2 Search scale | 🟡 Core search live; geo/map open |
+| 3 Pay rails | 🟡 Code ready (FLW + USD); **keys locked** |
+| 4 Chat / AI distribution | 🟡 WA live + rich messages; LLM optional |
+| 5 Guest web | 🟡 Search/stays/booking status; funnel polish open |
+| 6 Ops / Realcorp | ⬜ Domain cutover last |
 | 7 Expand types | ⬜ |
 
-When you say go, we implement **B1.1 → B1.5 → B1.8** first (signup + add-unit wizard + LIVE toggle).
+Next: **host photo upload** (optional polish) → **FLW keys** → **domain DNS**.

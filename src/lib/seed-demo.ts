@@ -16,6 +16,7 @@ type ListingSeed = {
   bathrooms: number;
   maxGuests: number;
   amenities: string[];
+  photoUrls?: string[];
   tourUrl?: string;
   lat?: number;
   lng?: number;
@@ -40,6 +41,10 @@ const LISTINGS: ListingSeed[] = [
     bathrooms: 3.5,
     maxGuests: 6,
     amenities: ["wifi", "generator", "security", "parking", "ac", "concierge"],
+    photoUrls: [
+      "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&q=80",
+      "https://images.unsplash.com/photo-1560448204-e02f11c3be61?w=800&q=80",
+    ],
     lat: 6.4281,
     lng: 3.4219,
   },
@@ -59,6 +64,10 @@ const LISTINGS: ListingSeed[] = [
     bathrooms: 4,
     maxGuests: 8,
     amenities: ["wifi", "pool", "generator", "security", "parking", "bbq"],
+    photoUrls: [
+      "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&q=80",
+      "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&q=80",
+    ],
     lat: 6.4474,
     lng: 3.4721,
   },
@@ -77,6 +86,9 @@ const LISTINGS: ListingSeed[] = [
     bathrooms: 3,
     maxGuests: 6,
     amenities: ["wifi", "generator", "security", "parking"],
+    photoUrls: [
+      "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&q=80",
+    ],
     lat: 6.4541,
     lng: 3.4358,
   },
@@ -95,6 +107,9 @@ const LISTINGS: ListingSeed[] = [
     bathrooms: 2,
     maxGuests: 4,
     amenities: ["wifi", "ac", "generator", "parking"],
+    photoUrls: [
+      "https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=800&q=80",
+    ],
     lat: 6.4302,
     lng: 3.4451,
   },
@@ -113,6 +128,9 @@ const LISTINGS: ListingSeed[] = [
     bathrooms: 1,
     maxGuests: 2,
     amenities: ["wifi", "workspace", "ac", "generator"],
+    photoUrls: [
+      "https://images.unsplash.com/photo-1536376072261-38c75010e6c9?w=800&q=80",
+    ],
     lat: 6.5095,
     lng: 3.3711,
   },
@@ -131,6 +149,9 @@ const LISTINGS: ListingSeed[] = [
     bathrooms: 2,
     maxGuests: 4,
     amenities: ["wifi", "security", "parking", "ac", "generator"],
+    photoUrls: [
+      "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=800&q=80",
+    ],
     lat: 9.0882,
     lng: 7.4922,
   },
@@ -150,6 +171,9 @@ const LISTINGS: ListingSeed[] = [
     bathrooms: 2,
     maxGuests: 4,
     amenities: ["wifi", "pool", "ac", "kitchen"],
+    photoUrls: [
+      "https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=800&q=80",
+    ],
     tourUrl: "https://my.matterport.com/show/?m=demo",
     lat: 13.1867,
     lng: -59.6381,
@@ -169,6 +193,9 @@ const LISTINGS: ListingSeed[] = [
     bathrooms: 1,
     maxGuests: 2,
     amenities: ["wifi", "workspace", "elevator"],
+    photoUrls: [
+      "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=800&q=80",
+    ],
     lat: 19.4337,
     lng: -99.1945,
   },
@@ -240,7 +267,7 @@ export async function seedDemoInventory() {
           bathrooms: item.bathrooms || null,
           maxGuests: item.maxGuests,
           amenities: item.amenities,
-          photoUrls: [],
+          photoUrls: item.photoUrls ?? [],
           tourUrl: item.tourUrl,
           lat: item.lat,
           lng: item.lng,

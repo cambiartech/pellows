@@ -7,6 +7,7 @@ import { generateText, stepCountIs, tool } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { invokeTool } from "@/lib/agent/tools";
+import { decideGuestTurn, replyForIntent } from "@/lib/agent/decisions";
 import { searchListings, type SearchHit } from "@/lib/search";
 
 function money(amount: number, currency: string) {
@@ -78,6 +79,13 @@ function getSession(key: string): Session {
   }
   return s;
 }
+
+/** For WhatsApp interactive follow-ups after a text reply. */
+export function peekGuestSession(guestPhone: string): Session | undefined {
+  return sessions.get(guestPhone) ?? sessions.get(guestPhone.replace(/^\+/, ""));
+}
+
+export type { StayCard, Session };
 
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -414,12 +422,15 @@ async function createHoldAndPayLink(
   s.payUrl = `${appBaseUrl()}/pay/${pay.paymentIntentId}`;
   s.phase = "paying";
 
+  const statusUrl = `${appBaseUrl()}/booking/${hold.bookingId}`;
+
   return (
     `You're set, ${name} ✅\n\n` +
     `*${pick.title}*\n` +
     `${s.checkIn} → ${s.checkOut} · ${s.guests} guests\n` +
     `Total ${money(hold.total, hold.currency)}\n\n` +
     `Pay in the app (card, bank, or crypto):\n${s.payUrl}\n\n` +
+    `Track booking:\n${statusUrl}\n\n` +
     `Once it clears, your dates are locked.`
   );
 }
@@ -434,8 +445,20 @@ export async function handleGuestMessageRules(input: {
   const s = getSession(input.guestPhone);
   if (input.guestName && !s.guestName) s.guestName = input.guestName;
 
+  const decision = await decideGuestTurn({
+    text,
+    phase: s.phase,
+    hasResults: s.results.length > 0,
+    hasPayUrl: Boolean(s.payUrl),
+  });
+
+  const canned = replyForIntent(decision.intent);
+  if (canned && (decision.intent === "how_it_works" || decision.intent === "holiday_expand" || decision.intent === "out_of_scope")) {
+    return canned;
+  }
+
   // Reset
-  if (/^(reset|start over|new search)\b/i.test(text)) {
+  if (decision.intent === "reset") {
     sessions.set(input.guestPhone, {
       phase: "greeting",
       guests: 2,
@@ -445,12 +468,17 @@ export async function handleGuestMessageRules(input: {
     return "Fresh start. Where do you want to stay, and for which dates?";
   }
 
+  if (decision.intent === "start_book") {
+    s.phase = "collecting";
+    return "Let’s book. Where should I look — Lagos, Lekki, VI, Ikoyi, Abuja… — and which dates?";
+  }
+
   // Pay reminder
   if (s.phase === "paying" && s.payUrl) {
-    if (/\b(paid|done|sent|completed)\b/i.test(lower)) {
-      return `Nice — if the payment went through you’re confirmed. You can always reopen:\n${s.payUrl}`;
-    }
-    if (/\b(pay|payment|link|card|bank|crypto)\b/i.test(lower)) {
+    if (decision.intent === "pay_status" || /\b(paid|done|sent|completed)\b/i.test(lower)) {
+      if (/\b(paid|done|sent|completed)\b/i.test(lower)) {
+        return `Nice — if the payment went through you’re confirmed. You can always reopen:\n${s.payUrl}`;
+      }
       return `Pay here whenever you’re ready:\n${s.payUrl}\n\nCard, bank, or crypto — all in-app.`;
     }
   }
@@ -468,6 +496,7 @@ export async function handleGuestMessageRules(input: {
 
   // Greeting
   if (
+    decision.intent === "greeting" ||
     s.phase === "greeting" ||
     /^(hi|hello|hey|yo|good\s*(morning|evening|day))\b/i.test(text)
   ) {
@@ -482,14 +511,17 @@ export async function handleGuestMessageRules(input: {
       if (need) {
         return `Happy to help you book.\n\n${need}`;
       }
-    } else if (/^(hi|hello|hey|yo)/i.test(text)) {
-      return "Hey — I’m Pellows. I’ll help you find a short stay.\n\nWhere are you going, and roughly which dates?";
+    } else if (decision.intent === "greeting" || /^(hi|hello|hey|yo)/i.test(text)) {
+      return "Hey — I’m Pellows. I’ll help you find a short stay.\n\nWhere are you going, and roughly which dates? (Or say something like “2 bed Lekki Dec 20–27”.)";
     }
   }
 
   // Selecting from shown results
   if (s.phase === "showing" && s.results.length) {
-    const pick = matchPick(text, s.results);
+    const pick =
+      decision.intent === "pick_stay" && decision.slots.pickIndex
+        ? s.results[decision.slots.pickIndex - 1]
+        : matchPick(text, s.results);
     if (pick) {
       s.selected = pick;
       if (!s.guestName) {
@@ -504,7 +536,12 @@ export async function handleGuestMessageRules(input: {
       return createHoldAndPayLink(s, input.guestPhone);
     }
     // Refinement without pick
-    if (parseVibe(text).length || s.area || /cheaper|different|else|other|more/i.test(lower)) {
+    if (
+      decision.intent === "refine" ||
+      parseVibe(text).length ||
+      s.area ||
+      /cheaper|different|else|other|more/i.test(lower)
+    ) {
       const cards = await runSearch(s);
       if (!cards.length) {
         return "Nothing matched that tweak. Want to loosen the vibe or try another area?";

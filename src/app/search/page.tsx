@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { LAGOS_AREAS } from "@/lib/agency";
+import { dualPriceLabel } from "@/lib/money";
 
 type Hit = {
   id: string;
@@ -20,6 +21,7 @@ type Hit = {
   tourUrl: string | null;
   neighbourhood: string | null;
   amenities: string[];
+  photoUrls?: string[];
 };
 
 type Facets = {
@@ -34,18 +36,6 @@ type Facets = {
     count: number;
   }[];
 };
-
-function formatMoney(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount / 100);
-  } catch {
-    return `${(amount / 100).toFixed(0)} ${currency}`;
-  }
-}
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -355,56 +345,81 @@ export default function SearchPage() {
               checkOut,
               guests: String(guests),
             });
+            const price = dualPriceLabel(hit.basePrice, hit.currency);
+            const photo = hit.photoUrls?.[0];
             return (
               <motion.li
                 key={hit.id}
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: i * 0.04, ease }}
-                className="rounded-[var(--radius-panel)] border border-[var(--hairline)] bg-[var(--surface)]/80 px-5 py-5 md:px-6"
+                className="overflow-hidden rounded-[var(--radius-panel)] border border-[var(--hairline)] bg-[var(--surface)]/80"
               >
-                <div className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h2 className="font-display text-[1.35rem] font-medium tracking-[-0.02em]">
-                    {hit.title}
-                  </h2>
-                  <p className="text-[0.9375rem] font-medium tabular-nums">
-                    {formatMoney(hit.basePrice, hit.currency)}
-                    <span className="font-normal text-[var(--muted)]">
-                      {" "}
-                      / night
-                    </span>
-                  </p>
-                </div>
-                <p className="mt-1.5 text-[0.875rem] text-[var(--muted)]">
-                  {[hit.neighbourhood, hit.city, hit.country]
-                    .filter(Boolean)
-                    .join(" · ")}{" "}
-                  · {hit.bedrooms != null ? `${hit.bedrooms} bed · ` : ""}
-                  up to {hit.maxGuests} guests
-                </p>
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <Link
-                    href={`/stays/${hit.slug ?? hit.id}`}
-                    className="btn-pill btn-ghost text-[0.8125rem]"
-                  >
-                    View
-                  </Link>
-                  <Link
-                    href={`/book/${hit.id}?${qs}`}
-                    className="btn-pill btn-primary text-[0.8125rem]"
-                  >
-                    Book
-                  </Link>
-                  {hit.tourUrl ? (
-                    <a
-                      href={hit.tourUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn-pill btn-ghost text-[0.8125rem]"
-                    >
-                      Tour
-                    </a>
-                  ) : null}
+                <div className="flex flex-col sm:flex-row">
+                  <div className="relative aspect-[16/10] shrink-0 bg-[var(--foam)] sm:aspect-auto sm:h-auto sm:w-44 md:w-52">
+                    {photo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={photo}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full min-h-[7.5rem] items-center justify-center text-[0.75rem] uppercase tracking-[0.12em] text-[var(--muted)]">
+                        No photo
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-col px-5 py-5 md:px-6">
+                    <div className="flex flex-wrap items-baseline justify-between gap-3">
+                      <h2 className="font-display text-[1.35rem] font-medium tracking-[-0.02em]">
+                        {hit.title}
+                      </h2>
+                      <p className="text-right text-[0.9375rem] font-medium tabular-nums">
+                        {price.usd || price.primary}
+                        <span className="font-normal text-[var(--muted)]">
+                          {" "}
+                          / night
+                        </span>
+                        {price.usd ? (
+                          <span className="mt-0.5 block text-[0.75rem] font-normal text-[var(--muted)]">
+                            {price.primary}
+                          </span>
+                        ) : null}
+                      </p>
+                    </div>
+                    <p className="mt-1.5 text-[0.875rem] text-[var(--muted)]">
+                      {[hit.neighbourhood, hit.city, hit.country]
+                        .filter(Boolean)
+                        .join(" · ")}{" "}
+                      · {hit.bedrooms != null ? `${hit.bedrooms} bed · ` : ""}
+                      up to {hit.maxGuests} guests
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <Link
+                        href={`/stays/${hit.slug ?? hit.id}`}
+                        className="btn-pill btn-ghost text-[0.8125rem]"
+                      >
+                        View
+                      </Link>
+                      <Link
+                        href={`/book/${hit.id}?${qs}`}
+                        className="btn-pill btn-primary text-[0.8125rem]"
+                      >
+                        Book
+                      </Link>
+                      {hit.tourUrl ? (
+                        <a
+                          href={hit.tourUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn-pill btn-ghost text-[0.8125rem]"
+                        >
+                          Tour
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               </motion.li>
             );

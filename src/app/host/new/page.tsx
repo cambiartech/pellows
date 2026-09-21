@@ -26,6 +26,7 @@ export default function NewListingWizard() {
     bathrooms: "2",
     maxGuests: "4",
     amenities: ["wifi", "ac", "generator"] as string[],
+    photoUrlsText: "",
     goLive: true,
   });
 
@@ -72,6 +73,11 @@ export default function NewListingWizard() {
           bathrooms: Number(form.bathrooms) || 1,
           maxGuests: Number(form.maxGuests) || 2,
           amenities: form.amenities,
+          photoUrls: form.photoUrlsText
+            .split(/[\n,]+/)
+            .map((u) => u.trim())
+            .filter((u) => /^https?:\/\//i.test(u))
+            .slice(0, 12),
           status: form.goLive ? "LIVE" : "DRAFT",
           timezone: "Africa/Lagos",
         }),
@@ -236,6 +242,19 @@ export default function NewListingWizard() {
                   />
                 </label>
               </div>
+              <label className="block">
+                <span className="text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
+                  Photo URLs
+                </span>
+                <textarea
+                  className="field mt-1.5 min-h-[5rem]"
+                  placeholder="Paste image links, one per line (camera upload soon)"
+                  value={form.photoUrlsText}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, photoUrlsText: e.target.value }))
+                  }
+                />
+              </label>
               <p className="text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
                 Amenities
               </p>

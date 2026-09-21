@@ -1,7 +1,7 @@
 # Pellows — Scope, Stack & Launch Plan
 
-**Product:** Pellows (from “pillows”) — Realcorp’s guest-facing stay / rental / experience marketplace + AI booking agent  
-**Parent:** boerP / Realcorp ERP (`../realcorp`) — operator back-office  
+**Product:** Pellows (from “pillows”) — Realcorp’s guest-facing stay marketplace + AI booking agent. **North star:** full holiday OS (flight → stay → experiences), starting with shortlets.  
+**Experience stack:** [EXPERIENCE.md](./EXPERIENCE.md) · **Parent:** boerP / Realcorp ERP (`../realcorp`)  
 **Rule:** Separate codebase. Sync via adapters. Do **not** merge into Realcorp.  
 **Roadmap diagrams:** see **[ROADMAP.md](./ROADMAP.md)** · **[CONVERSATION_FLOW.md](./CONVERSATION_FLOW.md)**
 
@@ -46,8 +46,9 @@ See **[CONVERSATION_FLOW.md](./CONVERSATION_FLOW.md)** for how chat talks to tha
 | App | **Next.js (App Router) + TypeScript** | Same family as Realcorp; ships UI + API fast |
 | DB | **PostgreSQL + Prisma** | Inventory, calendars, bookings, ledger; geo/search-ready |
 | Search | **Postgres now** → **Typesense/Meilisearch when agencies scale** | Multi-agency LIVE inventory; availability in-query; see SEARCH.md |
-| Agent | **Shared tool API** (`search`, `hold`, `pay`, `confirm`) | One brain for WhatsApp, web chat, ChatGPT, Gemini |
-| Models | **Bring-your-own** (OpenAI / Anthropic / etc.) | Not locked to Workers AI |
+| Agent | **Shared tool API** (`search`, `hold`, `pay`, `confirm`) | One brain for WhatsApp, web, ChatGPT, Gemini |
+| Decide | **Rules → Jev (TypeSafe)** for intent/slots | Typed routing; no hallucinated tool calls |
+| Speak | **LLM optional** (OpenAI / Meta) | Warm copy only; inventory from tools |
 | Payments | **Pellows-owned rails** (card / bank / crypto) | Guests pay *us*; we settle hosts |
 | Hosting | **Node host** (Vercel / Fly / Railway / bare) | Not Cloudflare Agents |
 | Realcorp | **Webhook + ID map later** | Speed now; ERP sync after bookings work |

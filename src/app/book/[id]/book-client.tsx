@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
+import { dualPriceLabel } from "@/lib/money";
 
 type Listing = {
   id: string;
@@ -16,21 +17,8 @@ type Listing = {
   cleaningFee: number;
   maxGuests: number;
   description: string;
+  slug?: string;
 };
-
-type PayMethod = "CARD" | "BANK_RAIL" | "CRYPTO";
-
-function money(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount / 100);
-  } catch {
-    return `${(amount / 100).toFixed(0)} ${currency}`;
-  }
-}
 
 function nightsBetween(a: string, b: string) {
   const ms =
@@ -41,6 +29,7 @@ function nightsBetween(a: string, b: string) {
 export default function BookClient() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const listingId = params.id;
 
   const [listing, setListing] = useState<Listing | null>(null);
@@ -50,16 +39,7 @@ export default function BookClient() {
   const [guests, setGuests] = useState(Number(searchParams.get("guests") || 2));
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
-  const [method, setMethod] = useState<PayMethod>("BANK_RAIL");
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{
-    bookingId: string;
-    paymentIntentId: string;
-    total: number;
-    currency: string;
-    instructions: Record<string, unknown>;
-    status: string;
-  } | null>(null);
 
   useEffect(() => {
     fetch(`/api/v1/listings/${listingId}`)
@@ -100,42 +80,29 @@ export default function BookClient() {
       const bookData = await bookRes.json();
       if (!bookRes.ok) throw new Error(bookData.error || "Hold failed");
 
+      // Same funnel as WhatsApp: hold → CARD intent → /pay page
       const payRes = await fetch("/api/v1/payments/intents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId: bookData.booking.id,
-          method,
+          method: "CARD",
         }),
       });
       const payData = await payRes.json();
       if (!payRes.ok) throw new Error(payData.error || "Payment failed");
 
-      const confRes = await fetch("/api/v1/payments/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paymentIntentId: payData.paymentIntent.id,
-          devConfirm: true,
-        }),
-      });
-      const confData = await confRes.json();
-      if (!confRes.ok) throw new Error(confData.error || "Confirm failed");
-
-      setDone({
-        bookingId: bookData.booking.id,
-        paymentIntentId: payData.paymentIntent.id,
-        total: bookData.booking.total,
-        currency: bookData.booking.currency,
-        instructions: payData.paymentIntent.instructions,
-        status: confData.paymentIntent.booking.status,
-      });
+      router.push(`/pay/${payData.paymentIntent.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Booking failed");
-    } finally {
       setBusy(false);
     }
   }
+
+  const totalLabel =
+    listing && estimate
+      ? dualPriceLabel(estimate.total, listing.currency)
+      : null;
 
   return (
     <section className="px-6 pb-24 pt-28 md:px-10 md:pt-32">
@@ -151,7 +118,7 @@ export default function BookClient() {
           <p className="mt-8 text-[#9a4030]">{error}</p>
         )}
 
-        {listing && !done && (
+        {listing && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -233,38 +200,15 @@ export default function BookClient() {
                 </label>
               </div>
 
-              <div>
-                <span className="text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
-                  Pay with
-                </span>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(
-                    [
-                      ["BANK_RAIL", "Bank"],
-                      ["CARD", "Card"],
-                      ["CRYPTO", "Crypto"],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setMethod(value)}
-                      className={`rounded-[var(--radius-pill)] px-4 py-2 text-[0.8125rem] font-medium ${
-                        method === value
-                          ? "bg-[var(--sea)] text-[#f7f4ee]"
-                          : "border border-[var(--hairline)] text-[var(--ink-soft)]"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {estimate && (
+              {estimate && totalLabel && (
                 <p className="text-[0.9375rem] text-[var(--ink)]">
                   {estimate.nights} night{estimate.nights === 1 ? "" : "s"} ·{" "}
-                  {money(estimate.total, listing.currency)} incl. cleaning
+                  {totalLabel.usd || totalLabel.primary} incl. cleaning
+                  {totalLabel.usd ? (
+                    <span className="ml-1 text-[var(--muted)]">
+                      ({totalLabel.primary})
+                    </span>
+                  ) : null}
                 </p>
               )}
 
@@ -273,47 +217,24 @@ export default function BookClient() {
               <button
                 type="button"
                 disabled={busy || !checkIn || !checkOut || !guestName.trim()}
-                onClick={onBook}
+                onClick={() => void onBook()}
                 className="btn-pill btn-primary disabled:opacity-50"
               >
-                {busy ? "Booking…" : "Hold & pay"}
+                {busy ? "Holding…" : "Continue to pay"}
               </button>
               <p className="text-[0.75rem] text-[var(--muted)]">
-                Launch mode confirms payment after intent (processor webhooks
-                next). Calendar hard-blocks on confirm.
+                We hold your dates briefly. Pay on the next screen (card, bank,
+                or crypto) — same flow as WhatsApp.
               </p>
+              {listing.slug ? (
+                <Link
+                  href={`/stays/${listing.slug}`}
+                  className="block text-[0.8125rem] text-[var(--muted)] hover:text-[var(--ink)]"
+                >
+                  ← Back to stay
+                </Link>
+              ) : null}
             </div>
-          </motion.div>
-        )}
-
-        {done && (
-          <motion.div
-            className="mt-8 rounded-[var(--radius-panel)] border border-[var(--hairline)] bg-[var(--foam)] p-6"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <p className="text-[0.8125rem] font-medium uppercase tracking-[0.14em] text-[var(--sea)]">
-              Confirmed
-            </p>
-            <h2 className="font-display mt-2 text-[1.75rem] font-medium tracking-[-0.02em]">
-              You&apos;re booked
-            </h2>
-            <p className="mt-3 text-[0.9375rem] text-[var(--ink-soft)]">
-              Status <strong>{done.status}</strong> ·{" "}
-              {money(done.total, done.currency)}
-            </p>
-            <p className="mt-2 font-mono text-[0.75rem] text-[var(--muted)]">
-              booking {done.bookingId}
-            </p>
-            <pre className="mt-4 overflow-x-auto rounded-[var(--radius-ui)] bg-white/70 p-3 text-[0.75rem] text-[var(--ink-soft)]">
-              {JSON.stringify(done.instructions, null, 2)}
-            </pre>
-            <Link
-              href="/search"
-              className="btn-pill btn-primary mt-6 inline-flex"
-            >
-              Back to search
-            </Link>
           </motion.div>
         )}
       </div>

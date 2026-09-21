@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
 import {
   appendMessage,
+  conversationHasAssistant,
   getOrCreateWaConversation,
+  sendWhatsAppCtaUrl,
+  sendWhatsAppStayList,
   sendWhatsAppText,
+  sendWhatsAppTyping,
+  sendWhatsAppWelcome,
 } from "@/lib/whatsapp";
-import { handleGuestMessage } from "@/lib/agent/guest-agent";
+import {
+  handleGuestMessage,
+  peekGuestSession,
+} from "@/lib/agent/guest-agent";
 import { prisma } from "@/lib/db";
 import { recordWaDebug } from "@/lib/wa-debug";
+import { dualPriceLabel } from "@/lib/money";
 
 export const runtime = "nodejs";
 
@@ -18,14 +27,14 @@ export async function GET(request: Request) {
   const expected = process.env.WHATSAPP_VERIFY_TOKEN ?? "pellows-dev-verify";
 
   if (mode === "subscribe" && token === expected && challenge) {
-    recordWaDebug({
+    await recordWaDebug({
       at: new Date().toISOString(),
       method: "GET",
       summary: "verify_ok",
     });
     return new NextResponse(challenge, { status: 200 });
   }
-  recordWaDebug({
+  await recordWaDebug({
     at: new Date().toISOString(),
     method: "GET",
     summary: "verify_forbidden",
@@ -34,11 +43,36 @@ export async function GET(request: Request) {
 }
 
 type WaMessage = {
+  id?: string;
   from?: string;
   type?: string;
   text?: { body?: string };
-  profile?: { name?: string };
+  interactive?: {
+    type?: string;
+    list_reply?: { id?: string; title?: string };
+    button_reply?: { id?: string; title?: string };
+  };
 };
+
+function extractInboundText(message: WaMessage): string | null {
+  if (message.type === "text" && message.text?.body) {
+    return message.text.body.trim();
+  }
+  if (message.type === "interactive") {
+    const btnId = message.interactive?.button_reply?.id;
+    if (btnId?.startsWith("start:")) return btnId;
+    const listId = message.interactive?.list_reply?.id;
+    if (listId?.startsWith("pick:")) {
+      return listId.replace("pick:", "");
+    }
+    const title =
+      message.interactive?.button_reply?.title ||
+      message.interactive?.list_reply?.title;
+    if (title) return title.trim();
+    if (listId) return listId;
+  }
+  return null;
+}
 
 export async function POST(request: Request) {
   const payload = await request.json();
@@ -52,7 +86,7 @@ export async function POST(request: Request) {
     const statuses = value?.statuses;
 
     if (statuses?.length && !message) {
-      recordWaDebug({
+      await recordWaDebug({
         at: new Date().toISOString(),
         method: "POST",
         summary: `status:${statuses[0]?.status ?? "unknown"}`,
@@ -60,12 +94,54 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    if (message?.type === "text" && message.text?.body && message.from) {
+    const text = message ? extractInboundText(message) : null;
+
+    if (message?.from && text) {
       const waPhone = message.from;
-      const text = message.text.body.trim();
+
+      // … dots while we think (Meta typing indicator)
+      if (message.id) {
+        try {
+          await sendWhatsAppTyping(message.id);
+        } catch (err) {
+          console.error("[pellows.whatsapp.typing]", err);
+        }
+      }
+
       const { conversation } = await getOrCreateWaConversation(waPhone);
+      const isCold = !(await conversationHasAssistant(conversation.id));
 
       await appendMessage(conversation.id, "user", text);
+
+      // First touch: OWO-style welcome + buttons, then agent continues
+      if (
+        isCold &&
+        (/^(hi|hello|hey|yo)\b/i.test(text) || text === "start:help")
+      ) {
+        try {
+          await sendWhatsAppWelcome(waPhone, contactName);
+          await appendMessage(
+            conversation.id,
+            "assistant",
+            "[welcome interactive]",
+          );
+        } catch (err) {
+          console.error("[pellows.whatsapp.welcome]", err);
+        }
+        if (text === "start:help") {
+          // fall through so how_it_works reply also sends
+        } else if (/^(hi|hello|hey|yo)\b/i.test(text)) {
+          await recordWaDebug({
+            at: new Date().toISOString(),
+            method: "POST",
+            summary: "welcome_sent",
+            from: waPhone,
+            text: text.slice(0, 80),
+            replied: true,
+          });
+          return NextResponse.json({ ok: true });
+        }
+      }
 
       const recent = await prisma.agentMessage.findMany({
         where: {
@@ -77,22 +153,60 @@ export async function POST(request: Request) {
       });
       const history = recent
         .reverse()
+        .filter((m) => m.content !== "[welcome interactive]")
         .slice(0, -1)
         .map((m) => ({
           role: m.role as "user" | "assistant",
           content: m.content,
         }));
 
+      const guestPhone = waPhone.startsWith("+") ? waPhone : `+${waPhone}`;
       const reply = await handleGuestMessage({
         text,
-        guestPhone: waPhone.startsWith("+") ? waPhone : `+${waPhone}`,
+        guestPhone,
         guestName: contactName,
         history,
       });
 
       await appendMessage(conversation.id, "assistant", reply);
       const sent = await sendWhatsAppText(waPhone, reply);
-      recordWaDebug({
+
+      const session = peekGuestSession(guestPhone);
+      if (session?.phase === "showing" && session.results.length > 0) {
+        try {
+          await sendWhatsAppStayList(
+            waPhone,
+            "Tap a stay to continue booking:",
+            session.results.map((r, i) => {
+              const price = dualPriceLabel(r.basePrice, r.currency);
+              return {
+                id: `pick:${i + 1}`,
+                title: `${i + 1}. ${(r.neighbourhood || r.city).slice(0, 18)}`,
+                description: `${price.usd || price.primary}/night · ${r.title}`.slice(
+                  0,
+                  72,
+                ),
+              };
+            }),
+          );
+        } catch (err) {
+          console.error("[pellows.whatsapp.list]", err);
+        }
+      }
+      if (session?.phase === "paying" && session.payUrl) {
+        try {
+          await sendWhatsAppCtaUrl(
+            waPhone,
+            "Secure your dates — card (USD), bank, or crypto on Pellows.",
+            "Pay now",
+            session.payUrl,
+          );
+        } catch (err) {
+          console.error("[pellows.whatsapp.cta]", err);
+        }
+      }
+
+      await recordWaDebug({
         at: new Date().toISOString(),
         method: "POST",
         summary:
@@ -104,7 +218,7 @@ export async function POST(request: Request) {
         replied: !(sent && "dryRun" in sent && sent.dryRun),
       });
     } else {
-      recordWaDebug({
+      await recordWaDebug({
         at: new Date().toISOString(),
         method: "POST",
         summary: `ignored type=${message?.type ?? "none"}`,
@@ -113,7 +227,7 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     console.error("[pellows.whatsapp.error]", err);
-    recordWaDebug({
+    await recordWaDebug({
       at: new Date().toISOString(),
       method: "POST",
       summary: "error",
