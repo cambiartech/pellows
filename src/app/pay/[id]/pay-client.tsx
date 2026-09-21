@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -27,7 +27,7 @@ function money(amount: number, currency: string) {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
       currency,
-      maximumFractionDigits: 0,
+      maximumFractionDigits: currency.toUpperCase() === "USD" ? 2 : 0,
     }).format(amount / 100);
   } catch {
     return `${(amount / 100).toFixed(0)} ${currency}`;
@@ -42,7 +42,7 @@ export default function PayClient() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  const [stripeReady, setStripeReady] = useState(false);
+  const [cardProvider, setCardProvider] = useState<string>("flutterwave");
 
   useEffect(() => {
     fetch(`/api/v1/payments/intents/${id}`)
@@ -51,12 +51,16 @@ export default function PayClient() {
         if (!r.ok) throw new Error(data.error || "Not found");
         setIntent(data.paymentIntent);
         setMethod(data.paymentIntent.method);
+        const instr = data.paymentIntent.instructions as {
+          provider?: string;
+        } | null;
+        if (instr?.provider) setCardProvider(instr.provider);
         if (data.paymentIntent.status === "SUCCEEDED") setDone(true);
       })
       .catch((e) => setError(e.message));
   }, [id]);
 
-  // After Stripe Checkout redirect
+  // Stripe redirect confirm
   useEffect(() => {
     const stripe = searchParams.get("stripe");
     const sessionId = searchParams.get("session_id");
@@ -86,11 +90,56 @@ export default function PayClient() {
       .finally(() => setBusy(false));
   }, [searchParams, id, done]);
 
+  // Flutterwave redirect confirm
   useEffect(() => {
-    fetch("/api/v1/payments/stripe/checkout", { method: "OPTIONS" }).catch(() => null);
-    // Probe: checkout fails 400 without body but 503 if unset — use a light status
-    setStripeReady(true);
-  }, []);
+    const flw = searchParams.get("flw");
+    const status = searchParams.get("status");
+    const transactionId = searchParams.get("transaction_id");
+    if (flw !== "return" || done) return;
+    if (status && status !== "successful" && status !== "completed") {
+      setError("Card payment was not completed. Try again.");
+      return;
+    }
+    if (!transactionId) return;
+
+    setBusy(true);
+    fetch("/api/v1/payments/flutterwave/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentIntentId: id, transactionId }),
+    })
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || "Could not confirm Flutterwave payment");
+        setDone(true);
+        setIntent((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: "SUCCEEDED",
+                booking: { ...prev.booking, status: "CONFIRMED" },
+              }
+            : prev,
+        );
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "Confirm failed"))
+      .finally(() => setBusy(false));
+  }, [searchParams, id, done]);
+
+  const usdHint = useMemo(() => {
+    if (!intent || intent.currency.toUpperCase() !== "NGN") return null;
+    const rate = 1600 * 1.03;
+    const usd = intent.amount / 100 / rate;
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 2,
+      }).format(usd);
+    } catch {
+      return `≈ $${usd.toFixed(2)}`;
+    }
+  }, [intent]);
 
   async function switchMethod(next: "CARD" | "BANK_RAIL" | "CRYPTO") {
     setMethod(next);
@@ -109,6 +158,8 @@ export default function PayClient() {
         window.location.href = `/pay/${data.paymentIntent.id}`;
         return;
       }
+      const instr = data.paymentIntent.instructions as { provider?: string } | null;
+      if (instr?.provider) setCardProvider(instr.provider);
       setIntent({ ...intent, ...data.paymentIntent, booking: intent.booking });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
@@ -117,22 +168,26 @@ export default function PayClient() {
     }
   }
 
-  async function payWithStripe() {
+  async function payWithCard() {
     if (!intent) return;
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/v1/payments/stripe/checkout", {
+      const path =
+        cardProvider === "stripe"
+          ? "/api/v1/payments/stripe/checkout"
+          : "/api/v1/payments/flutterwave/checkout";
+      const res = await fetch(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paymentIntentId: intent.id }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not start Stripe Checkout");
+      if (!res.ok) throw new Error(data.error || "Could not start checkout");
       if (!data.url) throw new Error("No Checkout URL returned");
       window.location.href = data.url;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Stripe failed");
+      setError(e instanceof Error ? e.message : "Checkout failed");
       setBusy(false);
     }
   }
@@ -186,9 +241,12 @@ export default function PayClient() {
         </p>
         <h1 className="font-display mt-3 text-heading">Pay Pellows</h1>
 
-        {searchParams.get("stripe") === "cancel" && (
+        {(searchParams.get("stripe") === "cancel" ||
+          (searchParams.get("flw") === "return" &&
+            searchParams.get("status") &&
+            searchParams.get("status") !== "successful")) && (
           <p className="mt-4 text-sm text-[var(--muted)]">
-            Stripe checkout cancelled — pick a method and try again.
+            Checkout cancelled — pick a method and try again.
           </p>
         )}
 
@@ -212,6 +270,11 @@ export default function PayClient() {
               <p className="mt-3 text-lg font-medium tabular-nums">
                 {money(intent.amount, intent.currency)}
               </p>
+              {usdHint && (
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  Card checkout charges about {usdHint} USD
+                </p>
+              )}
             </div>
 
             {!done && (
@@ -223,7 +286,7 @@ export default function PayClient() {
                   <div className="mt-2 flex flex-wrap gap-2">
                     {(
                       [
-                        ["CARD", "Card"],
+                        ["CARD", "Card (USD)"],
                         ["BANK_RAIL", "Bank"],
                         ["CRYPTO", "Crypto"],
                       ] as const
@@ -247,8 +310,8 @@ export default function PayClient() {
 
                 {method === "CARD" && (
                   <p className="text-sm text-[var(--muted)]">
-                    Card runs via Stripe Checkout on Pellows-branded pay page.
-                    {stripeReady ? "" : ""}
+                    International cards via Flutterwave — priced in USD (FX
+                    included). Nigerian cards welcome too.
                   </p>
                 )}
                 {method === "BANK_RAIL" && bank && (
@@ -287,12 +350,12 @@ export default function PayClient() {
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => void payWithStripe()}
+                    onClick={() => void payWithCard()}
                     className="btn-pill btn-primary w-full disabled:opacity-50"
                   >
                     {busy
-                      ? "Redirecting to Stripe…"
-                      : `Pay ${money(intent.amount, intent.currency)} with card`}
+                      ? "Redirecting…"
+                      : `Pay with card${usdHint ? ` · ${usdHint}` : ""}`}
                   </button>
                 ) : (
                   <button

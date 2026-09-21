@@ -42,7 +42,13 @@ function cryptoInstructions(amount: number, currency: string, reference: string)
 function cardInstructions(amount: number, currency: string, reference: string) {
   const provider =
     process.env.CARD_RAIL_PROVIDER ||
-    (process.env.STRIPE_SECRET_KEY ? "stripe" : "paystack");
+    (process.env.FLW_SECRET_KEY
+      ? "flutterwave"
+      : process.env.PAYSTACK_SECRET_KEY
+        ? "paystack"
+        : process.env.STRIPE_SECRET_KEY
+          ? "stripe"
+          : "flutterwave");
   return {
     type: "CARD" as const,
     provider,

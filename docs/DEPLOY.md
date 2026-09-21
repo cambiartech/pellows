@@ -38,7 +38,8 @@ curl -X POST https://pellows.netlify.app/api/v1/admin/seed \
 | `WHATSAPP_ACCESS_TOKEN` | Yes |
 | `WHATSAPP_VERIFY_TOKEN` | `pellows-dev-verify` |
 | `PELLOWS_USE_LLM` | `0` |
-| Card rail | **Paused** — prefer Paystack for NG (see [CREDENTIALS.md](./CREDENTIALS.md)) |
+| Card rail | **Flutterwave** + USD (`FLW_*`, `FX_USD_NGN`, `FX_MARKUP_BPS`) |
+| Domains | **pellows.stay** (primary), **pellows.xyz** → Netlify |
 
 Health: https://pellows.netlify.app/api/v1/admin/status  
 WA inbound debug: https://pellows.netlify.app/api/v1/admin/wa-debug

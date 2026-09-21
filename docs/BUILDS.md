@@ -107,9 +107,10 @@ Comfy stays for guests = inventory from **wherever agencies already list**. See 
 
 ## Wave 3 — Guest book & pay (seamless) 🟡
 
-- [ ] **B3.1** Real **card** rail — **Paystack** for NG merchants (Stripe paused — NG businesses can’t settle via Stripe) 🔒
-- [x] **B3.1b** Stripe Checkout code retained for optional non-NG entity later
-- [ ] **B3.2** Real **bank** rail (Paystack DVA / transfer verify) 🔒
+- [ ] **B3.1** Real **card** rail — **Flutterwave** (USD charge + FX markup; NG settlement) 🔒
+- [x] **B3.1b** Stripe Checkout retained (paused for NG merchants)
+- [x] **B3.1c** USD dual-price on stay + pay pages (`FX_USD_NGN` / `FX_MARKUP_BPS`)
+- [ ] **B3.2** Real **bank** rail (Flutterwave/Paystack DVA) 🔒
 - [ ] **B3.3** Real **crypto** rail (deposit address + watcher) 🔒
 - [ ] **B3.4** Remove `devConfirm` from production
 - [ ] **B3.5** Pay receipt + WhatsApp “you’re confirmed” message

@@ -5,42 +5,34 @@ See [`.env.example`](../.env.example) for the full key list.
 
 ---
 
-## Card rail — Nigeria (Stripe paused)
+## Card rail — Nigeria + diaspora (Flutterwave + USD)
 
-**Stripe does not onboard Nigerian businesses for receiving payouts** in the usual way. Keep Stripe code for a future foreign entity / diaspora guests if useful, but **do not rely on it for Cambiar/Pellows as an NG merchant.**
+**Stripe paused** for NG merchant settlement. **Flutterwave** is the default card rail: charge guests in **USD** (FX markup), settle as configured in Flutterwave (NGN/USD). Hosts still list in NGN.
 
-### Recommended for Pellows (NG)
+| Env | Purpose |
+|-----|---------|
+| `FLW_SECRET_KEY` | Flutterwave secret |
+| `NEXT_PUBLIC_FLW_PUBLIC_KEY` | Public key (optional client) |
+| `FLW_SECRET_HASH` | Webhook `verif-hash` |
+| `CARD_RAIL_PROVIDER=flutterwave` | Force FLW |
+| `FX_USD_NGN` | Mid rate NGN per USD (default `1600`) |
+| `FX_MARKUP_BPS` | FX margin in bps (default `300` = 3%) |
 
-| Processor | Best for | Notes |
-|-----------|----------|--------|
-| **[Paystack](https://paystack.com/)** | Default card + local methods | NG-native; ~1.5% + ₦100 local (cap ₦2k); T+1 settlement; Checkout / API. **Wire this next.** |
-| **[Flutterwave](https://flutterwave.com/)** | Pan-Africa / multi-currency | Broader African methods; slightly higher local fees than Paystack. |
-| Bank transfer / virtual account | Guests without cards | Paystack Dedicated Virtual Accounts or Flutterwave transfers — pairs with our `BANK_RAIL` UX. |
-| Crypto (USDT) | Parallel rail | Keep deposit address + memo; settle off-ramp separately. |
+Webhook: `https://pellows.stay/api/webhooks/flutterwave` (or Netlify URL until DNS live)
 
-**What we need for Paystack**
+Checkout: `POST /api/v1/payments/flutterwave/checkout` · Confirm: `POST /api/v1/payments/flutterwave/confirm`
 
-| Env var | Where |
-|---------|--------|
-| `PAYSTACK_SECRET_KEY` | [dashboard.paystack.com](https://dashboard.paystack.com) → Settings → API Keys |
-| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | Same page (public) |
-| `CARD_RAIL_PROVIDER=paystack` | Forces Paystack on `/pay` |
-| Webhook URL | `https://pellows.netlify.app/api/webhooks/paystack` *(to build)* |
+**Paystack** remains a fallback (`CARD_RAIL_PROVIDER=paystack`) if you prefer it later. Stripe code stays for an optional non-NG entity.
 
-### Stripe (paused / optional)
+### Domains
 
-Only if you later have a supported entity outside NG. Existing Checkout code stays dormant when `CARD_RAIL_PROVIDER=paystack`.
-
-| Env var | Where |
-|---------|--------|
-| `STRIPE_SECRET_KEY` | Stripe Dashboard → API keys |
-| `STRIPE_PUBLISHABLE_KEY` | Same |
-| `STRIPE_WEBHOOK_SECRET` | Webhooks → signing secret |
-| `CARD_RAIL_PROVIDER=stripe` | Only when intentionally using Stripe |
+- **Primary:** [pellows.stay](https://pellows.stay) — guest + WhatsApp pay links  
+- **Alt:** [pellows.xyz](https://pellows.xyz)  
+- Point both to Netlify; set `APP_URL` / `NEXT_PUBLIC_APP_URL` to `https://pellows.stay`
 
 ---
 
-## 2. Bank rail (transfer / virtual account)
+## Bank rail (transfer / virtual account)
 
 **What we need**
 

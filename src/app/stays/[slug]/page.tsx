@@ -2,20 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { dualPriceLabel } from "@/lib/money";
 
 type Params = { params: Promise<{ slug: string }> };
-
-function money(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount / 100);
-  } catch {
-    return `${(amount / 100).toFixed(0)} ${currency}`;
-  }
-}
 
 async function getLiveStay(slug: string) {
   return prisma.listing.findFirst({
@@ -67,6 +56,8 @@ export default async function StayPage({ params }: Params) {
     .filter(Boolean)
     .join(" · ");
   const hostLabel = listing.host.businessName || listing.host.name;
+  const price = dualPriceLabel(listing.basePrice, listing.currency);
+  const cleaning = dualPriceLabel(listing.cleaningFee, listing.currency);
   const base =
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
     "http://localhost:3000";
@@ -192,15 +183,20 @@ export default async function StayPage({ params }: Params) {
               From
             </p>
             <p className="mt-1 font-display text-3xl font-medium tabular-nums">
-              {money(listing.basePrice, listing.currency)}
+              {price.usd || price.primary}
               <span className="text-base font-normal text-[var(--muted)]">
                 {" "}
                 / night
               </span>
             </p>
+            {price.usd && (
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                {price.primary} local
+              </p>
+            )}
             {listing.cleaningFee > 0 && (
               <p className="mt-1 text-sm text-[var(--muted)]">
-                + {money(listing.cleaningFee, listing.currency)} cleaning
+                + {cleaning.usd || cleaning.primary} cleaning
               </p>
             )}
             {listing.host.verified && (
