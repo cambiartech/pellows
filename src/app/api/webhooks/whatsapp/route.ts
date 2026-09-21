@@ -14,7 +14,7 @@ import {
   hydrateGuestSession,
   peekGuestSession,
 } from "@/lib/agent/guest-agent";
-import { hasGuestLlm } from "@/lib/agent/llm-provider";
+import { isGuestLlmEnabled } from "@/lib/agent/llm-provider";
 import {
   loadConversationState,
   loadLastBooking,
@@ -251,7 +251,7 @@ export async function POST(request: Request) {
         from: waPhone,
         text: text.slice(0, 80),
         replied: !(sent && "dryRun" in sent && sent.dryRun),
-        llm: hasGuestLlm() ? "on" : "rules",
+        llm: (await isGuestLlmEnabled()) ? "on" : "rules",
       });
     } else {
       await recordWaDebug({

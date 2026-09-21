@@ -158,6 +158,7 @@ Build so Google **and** AI agents can discover inventory. See [SEO_AI.md](./SEO_
 
 ## Wave 6 — Ops & Realcorp ⬜
 
+- [x] **B6.1a** Platform admin settings UI (`/admin`, password `ADMIN_PASSWORD` / default Pass@123) — LLM toggle + health
 - [ ] **B6.1** Platform admin: all agencies, units, bookings
 - [ ] **B6.2** `booking.confirmed` → Realcorp shortlets webhook
 - [ ] **B6.3** Realcorp blocks → Pellows calendar

@@ -7,7 +7,10 @@ import { generateText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import { invokeTool } from "@/lib/agent/tools";
 import { decideGuestTurn, replyForIntent } from "@/lib/agent/decisions";
-import { hasGuestLlm, resolveGuestLlm } from "@/lib/agent/llm-provider";
+import {
+  isGuestLlmEnabled,
+  resolveGuestLlmAsync,
+} from "@/lib/agent/llm-provider";
 import type { LastBookingSummary } from "@/lib/agent/memory";
 import { searchListings, type SearchHit } from "@/lib/search";
 
@@ -783,7 +786,7 @@ export async function handleGuestMessageLlm(input: {
   history: { role: "user" | "assistant"; content: string }[];
   lastBooking?: LastBookingSummary | null;
 }): Promise<string> {
-  const pick = resolveGuestLlm();
+  const pick = await resolveGuestLlmAsync();
   if (!pick) return handleGuestMessageRules(input);
 
   const base = appBaseUrl();
@@ -892,8 +895,8 @@ export async function handleGuestMessage(input: {
   history?: { role: "user" | "assistant"; content: string }[];
   lastBooking?: LastBookingSummary | null;
 }) {
-  // Prefer LLM when a real key exists. Set PELLOWS_USE_LLM=0 to force rules.
-  if (hasGuestLlm()) {
+  // Prefer LLM when keyed + AppSettings.useLlm (admin /admin toggle).
+  if (await isGuestLlmEnabled()) {
     return handleGuestMessageLlm({
       text: input.text,
       guestPhone: input.guestPhone,

@@ -39,11 +39,11 @@ curl -X POST https://pellows.netlify.app/api/v1/admin/seed \
 | `WHATSAPP_VERIFY_TOKEN` | `pellows-dev-verify` |
 | `GEMINI_API_KEY` | Required for smart WA (Google AI Studio) |
 | `GEMINI_MODEL` | Optional public id; omit from secrets scan (`gemini`+`-`+`3.6`+`-`+`flash`) |
-| `PELLOWS_USE_LLM` | Leave **unset** (or anything but `0`) so Gemini runs |
+| `PELLOWS_USE_LLM` | Leave **unset**, or flip LLM on in `/admin` (overrides `=0`) |
 | Card rail | **Flutterwave** + USD (`FLW_*`, `FX_USD_NGN`, `FX_MARKUP_BPS`) |
 | Domains | **pellows.stay** (primary), **pellows.xyz** → Netlify |
 
-### Admin / ops (no fancy UI yet)
+### Admin / ops
 
 | What | How |
 |------|-----|
@@ -51,10 +51,12 @@ curl -X POST https://pellows.netlify.app/api/v1/admin/seed \
 | **Seed Neon** | `curl -X POST …/api/v1/admin/seed -H "x-admin-secret: $ADMIN_SECRET"` |
 | **DB / listing health** | `/api/v1/admin/status` |
 | **WA webhook debug** | `/api/v1/admin/wa-debug` |
-| **LLM on?** | `/api/v1/admin/agent-health` → `llmEnabled: true` |
+| **LLM on?** | `/admin` toggle, or `/api/v1/admin/agent-health` → `llmEnabled: true` |
 | **Verify agency** | `POST /api/v1/admin/hosts/:id/verify` + header `x-admin-secret` |
 
-`ADMIN_SECRET` is set in Netlify (same family as `LLM_CHANNEL_SECRET` if you reused it). There is no separate “admin password” UI yet (B6.1).
+**Admin UI:** https://pellows.netlify.app/admin — password `ADMIN_PASSWORD` (default `Pass@123`). Toggle Guest LLM there; it overrides Netlify `PELLOWS_USE_LLM=0`.
+
+`ADMIN_SECRET` is still used for header-auth ops (verify / curl seed).
 
 Health: https://pellows.netlify.app/api/v1/admin/status  
 WA inbound debug: https://pellows.netlify.app/api/v1/admin/wa-debug

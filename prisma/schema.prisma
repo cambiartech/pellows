@@ -323,3 +323,12 @@ model AgentMessage {
 
   @@index([conversationId, createdAt])
 }
+
+/// Singleton platform settings (admin UI overrides — survives Netlify deploys)
+model AppSettings {
+  id          String   @id @default("default")
+  /// When true, Gemini/OpenAI runs even if PELLOWS_USE_LLM=0 in env
+  useLlm      Boolean  @default(true)
+  geminiModel String?
+  updatedAt   DateTime @updatedAt
+}

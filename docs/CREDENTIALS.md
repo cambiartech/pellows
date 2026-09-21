@@ -125,11 +125,12 @@ Until then: agencies use **URL + iCal + CSV** on `/host/import`.
 | Env | Purpose |
 |-----|---------|
 | `CRON_SECRET` | Protect `GET /api/cron/ical-sync` |
-| `ADMIN_SECRET` | Verify agencies (`POST /api/v1/admin/hosts/:id/verify`) |
+| `ADMIN_SECRET` | Verify agencies / curl seed (`x-admin-secret`) |
+| `ADMIN_PASSWORD` | `/admin` UI login (default `Pass@123` if unset) |
 | `LLM_CHANNEL_SECRET` | External AI tool invoke |
 | `GEMINI_API_KEY` | **Guest chat brain** (Google AI Studio) — required on Netlify for smart WA replies |
 | `GEMINI_MODEL` | Optional public model id (omit from secrets scan) |
-| `PELLOWS_USE_LLM` | Set `0` only to force rules engine |
+| `PELLOWS_USE_LLM` | Legacy kill-switch; prefer `/admin` → Guest LLM toggle |
 | `OPENAI_API_KEY` | Optional fallback LLM |
 | `MODEL_API_KEY` | Optional Muse (usually blocked) |
 | `DATABASE_URL` | Postgres |
