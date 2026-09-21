@@ -8,6 +8,7 @@ import { z } from "zod";
 import { invokeTool } from "@/lib/agent/tools";
 import { decideGuestTurn, replyForIntent } from "@/lib/agent/decisions";
 import { hasGuestLlm, resolveGuestLlm } from "@/lib/agent/llm-provider";
+import type { LastBookingSummary } from "@/lib/agent/memory";
 import { searchListings, type SearchHit } from "@/lib/search";
 
 function money(amount: number, currency: string) {
@@ -84,6 +85,31 @@ function getSession(key: string): Session {
 /** For WhatsApp interactive follow-ups after a text reply. */
 export function peekGuestSession(guestPhone: string): Session | undefined {
   return sessions.get(guestPhone) ?? sessions.get(guestPhone.replace(/^\+/, ""));
+}
+
+/** Hydrate in-memory session from DB (Netlify-safe across instances). */
+export function hydrateGuestSession(
+  guestPhone: string,
+  saved: Partial<Session> | null | undefined,
+) {
+  if (!saved) return getSession(guestPhone);
+  const s = getSession(guestPhone);
+  if (saved.phase) s.phase = saved.phase;
+  if (saved.city) s.city = saved.city;
+  if (saved.area) s.area = saved.area;
+  if (saved.checkIn) s.checkIn = saved.checkIn;
+  if (saved.checkOut) s.checkOut = saved.checkOut;
+  if (typeof saved.guests === "number") s.guests = saved.guests;
+  if (saved.vibe) s.vibe = saved.vibe;
+  if (saved.budgetMax) s.budgetMax = saved.budgetMax;
+  if (saved.bedrooms) s.bedrooms = saved.bedrooms;
+  if (saved.results) s.results = saved.results;
+  if (saved.selected) s.selected = saved.selected;
+  if (saved.guestName) s.guestName = saved.guestName;
+  if (saved.bookingId) s.bookingId = saved.bookingId;
+  if (saved.paymentIntentId) s.paymentIntentId = saved.paymentIntentId;
+  if (saved.payUrl) s.payUrl = saved.payUrl;
+  return s;
 }
 
 export type { StayCard, Session };
@@ -462,11 +488,25 @@ export async function handleGuestMessageRules(input: {
   text: string;
   guestPhone: string;
   guestName?: string;
+  lastBooking?: LastBookingSummary | null;
 }): Promise<string> {
   const text = input.text.trim();
   const lower = text.toLowerCase();
   const s = getSession(input.guestPhone);
   if (input.guestName && !s.guestName) s.guestName = input.guestName;
+
+  if (/\b(my booking|last booking|booking status|where.?s my)\b/i.test(lower) && input.lastBooking) {
+    const b = input.lastBooking;
+    const base =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_URL ||
+      "https://pellows.netlify.app";
+    return (
+      `Your latest booking:\n*${b.listingTitle}* · ${b.city}\n` +
+      `${b.checkIn} → ${b.checkOut} · ${b.guests} guests · ${b.status}\n\n` +
+      `Status page: ${base.replace(/\/$/, "")}/booking/${b.id}`
+    );
+  }
 
   const decision = await decideGuestTurn({
     text,
@@ -528,6 +568,7 @@ export async function handleGuestMessageRules(input: {
   if (decision.intent === "greeting" || /^(hi|hello|hey|yo|good\s*(morning|evening|day))\b/i.test(text)) {
     const cold = s.phase === "greeting";
     if (cold) s.phase = "collecting";
+    const last = input.lastBooking;
     if (s.city || s.checkIn) {
       const need = missingPrompt(s);
       return need
@@ -535,7 +576,20 @@ export async function handleGuestMessageRules(input: {
         : "Ready when you are — say “show me options” or tweak the vibe.";
     }
     if (!cold) {
+      if (last) {
+        return (
+          `Welcome back. Last time: *${last.listingTitle}* (${last.checkIn} → ${last.checkOut}, ${last.status}).\n\n` +
+          `New search? City + dates — e.g. “Lagos Dec 20–27 for 4”. Or say “my booking”.`
+        );
+      }
       return "Still here. City + dates works best — e.g. “Lagos Dec 20–27 for 4” or “Accra for Detty”.";
+    }
+    if (last) {
+      return (
+        `Hey${input.guestName ? ` ${input.guestName.split(" ")[0]}` : ""} — I’m Pellows.\n\n` +
+        `I still have your last stay: *${last.listingTitle}* in ${last.city} (${last.checkIn} → ${last.checkOut}, ${last.status}).\n\n` +
+        `Want another place, or say “my booking” for that one?`
+      );
     }
     return "Hey — I’m Pellows. I’ll help you find a short stay.\n\nWhere are you going, and roughly which dates? (Or say something like “2 bed Lekki Dec 20–27”.)";
   }
@@ -633,11 +687,15 @@ export async function handleGuestMessageLlm(input: {
   text: string;
   guestPhone: string;
   history: { role: "user" | "assistant"; content: string }[];
+  lastBooking?: LastBookingSummary | null;
 }): Promise<string> {
   const pick = resolveGuestLlm();
   if (!pick) return handleGuestMessageRules(input);
 
   const base = appBaseUrl();
+  const lastNote = input.lastBooking
+    ? `Returning guest. Last booking: ${input.lastBooking.listingTitle} in ${input.lastBooking.city}, ${input.lastBooking.checkIn}→${input.lastBooking.checkOut}, status ${input.lastBooking.status}, id ${input.lastBooking.id}. If they ask "my booking", share ${base}/booking/${input.lastBooking.id}.`
+    : "No prior booking on file for this phone.";
 
   try {
     const result = await generateText({
@@ -650,6 +708,7 @@ Then reply with the pay link: ${base}/pay/{paymentIntentId}
 Do NOT paste raw bank account numbers in chat. Payments happen in-app.
 Amounts from tools are minor units - divide by 100 when speaking.
 If they ask for flights or full holiday plans, acknowledge the vision and book the stay first.
+Remember context across turns from history. ${lastNote}
 Guest phone: ${input.guestPhone}
 (Provider: ${pick.provider}/${pick.modelId})`,
       messages: [
@@ -737,6 +796,7 @@ export async function handleGuestMessage(input: {
   guestPhone: string;
   guestName?: string;
   history?: { role: "user" | "assistant"; content: string }[];
+  lastBooking?: LastBookingSummary | null;
 }) {
   // Prefer LLM when a real key exists. Set PELLOWS_USE_LLM=0 to force rules.
   if (hasGuestLlm()) {
@@ -744,6 +804,7 @@ export async function handleGuestMessage(input: {
       text: input.text,
       guestPhone: input.guestPhone,
       history: input.history ?? [],
+      lastBooking: input.lastBooking,
     });
   }
   return handleGuestMessageRules(input);

@@ -2,8 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   handleGuestMessage,
+  hydrateGuestSession,
   peekGuestSession,
 } from "@/lib/agent/guest-agent";
+import {
+  loadConversationState,
+  loadLastBooking,
+  saveConversationState,
+} from "@/lib/agent/memory";
 import {
   appendMessage,
   getOrCreateWaConversation,
@@ -28,10 +34,14 @@ export async function POST(request: Request) {
 
     let history: { role: "user" | "assistant"; content: string }[] = [];
     let conversationId: string | null = null;
+    let lastBooking = null as Awaited<ReturnType<typeof loadLastBooking>>;
 
     try {
       const { conversation } = await getOrCreateWaConversation(waPhone);
       conversationId = conversation.id;
+      const saved = await loadConversationState(conversation.id);
+      hydrateGuestSession(guestPhone, saved);
+      lastBooking = await loadLastBooking(waPhone);
       await appendMessage(conversation.id, "user", body.text);
       const recent = await prisma.agentMessage.findMany({
         where: {
@@ -39,7 +49,7 @@ export async function POST(request: Request) {
           role: { in: ["user", "assistant"] },
         },
         orderBy: { createdAt: "desc" },
-        take: 12,
+        take: 16,
       });
       history = recent
         .reverse()
@@ -60,22 +70,29 @@ export async function POST(request: Request) {
       guestPhone,
       guestName: body.name,
       history,
+      lastBooking,
     });
 
+    const session = peekGuestSession(guestPhone);
     if (conversationId) {
       try {
         await appendMessage(conversationId, "assistant", reply);
+        if (session) await saveConversationState(conversationId, session);
       } catch {
         /* ignore persist failure */
       }
     }
 
-    const session = peekGuestSession(guestPhone);
     const ui: {
       buttons?: { id: string; title: string }[];
-  stays?: { id: string; title: string; description: string; photoUrl?: string }[];
-  payUrl?: string;
-  phase?: string;
+      stays?: {
+        id: string;
+        title: string;
+        description: string;
+        photoUrl?: string;
+      }[];
+      payUrl?: string;
+      phase?: string;
     } = { phase: session?.phase };
 
     if (session?.phase === "greeting") {

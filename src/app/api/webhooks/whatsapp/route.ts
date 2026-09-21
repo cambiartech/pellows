@@ -11,8 +11,14 @@ import {
 } from "@/lib/whatsapp";
 import {
   handleGuestMessage,
+  hydrateGuestSession,
   peekGuestSession,
 } from "@/lib/agent/guest-agent";
+import {
+  loadConversationState,
+  loadLastBooking,
+  saveConversationState,
+} from "@/lib/agent/memory";
 import { prisma } from "@/lib/db";
 import { recordWaDebug } from "@/lib/wa-debug";
 import { dualPriceLabel } from "@/lib/money";
@@ -98,8 +104,8 @@ export async function POST(request: Request) {
 
     if (message?.from && text) {
       const waPhone = message.from;
+      const guestPhone = waPhone.startsWith("+") ? waPhone : `+${waPhone}`;
 
-      // … dots while we think (Meta typing indicator)
       if (message.id) {
         try {
           await sendWhatsAppTyping(message.id);
@@ -109,15 +115,15 @@ export async function POST(request: Request) {
       }
 
       const { conversation } = await getOrCreateWaConversation(waPhone);
+      const saved = await loadConversationState(conversation.id);
+      hydrateGuestSession(guestPhone, saved);
+      const lastBooking = await loadLastBooking(waPhone);
       const isCold = !(await conversationHasAssistant(conversation.id));
 
       await appendMessage(conversation.id, "user", text);
 
-      // First touch: OWO-style welcome + buttons, then agent continues
-      if (
-        isCold &&
-        (/^(hi|hello|hey|yo)\b/i.test(text) || text === "start:help")
-      ) {
+      // Welcome buttons on first hello — NEVER skip the text reply if this fails
+      if (isCold && /^(hi|hello|hey|yo)\b/i.test(text)) {
         try {
           await sendWhatsAppWelcome(waPhone, contactName);
           await appendMessage(
@@ -128,19 +134,6 @@ export async function POST(request: Request) {
         } catch (err) {
           console.error("[pellows.whatsapp.welcome]", err);
         }
-        if (text === "start:help") {
-          // fall through so how_it_works reply also sends
-        } else if (/^(hi|hello|hey|yo)\b/i.test(text)) {
-          await recordWaDebug({
-            at: new Date().toISOString(),
-            method: "POST",
-            summary: "welcome_sent",
-            from: waPhone,
-            text: text.slice(0, 80),
-            replied: true,
-          });
-          return NextResponse.json({ ok: true });
-        }
       }
 
       const recent = await prisma.agentMessage.findMany({
@@ -149,7 +142,7 @@ export async function POST(request: Request) {
           role: { in: ["user", "assistant"] },
         },
         orderBy: { createdAt: "desc" },
-        take: 12,
+        take: 16,
       });
       const history = recent
         .reverse()
@@ -160,18 +153,45 @@ export async function POST(request: Request) {
           content: m.content,
         }));
 
-      const guestPhone = waPhone.startsWith("+") ? waPhone : `+${waPhone}`;
-      const reply = await handleGuestMessage({
-        text,
-        guestPhone,
-        guestName: contactName,
-        history,
-      });
+      let reply: string;
+      try {
+        reply = await handleGuestMessage({
+          text,
+          guestPhone,
+          guestName: contactName,
+          history,
+          lastBooking,
+        });
+      } catch (err) {
+        console.error("[pellows.whatsapp.agent]", err);
+        reply =
+          "I’m here — had a hiccup. Tell me city + dates (e.g. Lekki Dec 20–27) and I’ll find stays.";
+      }
 
       await appendMessage(conversation.id, "assistant", reply);
-      const sent = await sendWhatsAppText(waPhone, reply);
 
       const session = peekGuestSession(guestPhone);
+      if (session) {
+        await saveConversationState(conversation.id, session);
+      }
+
+      let sent;
+      try {
+        sent = await sendWhatsAppText(waPhone, reply);
+      } catch (err) {
+        console.error("[pellows.whatsapp.text]", err);
+        await recordWaDebug({
+          at: new Date().toISOString(),
+          method: "POST",
+          summary: "send_text_failed",
+          from: waPhone,
+          text: text.slice(0, 80),
+          error: err instanceof Error ? err.message.slice(0, 160) : "send failed",
+          replied: false,
+        });
+        return NextResponse.json({ ok: true });
+      }
+
       if (session?.phase === "showing" && session.results.length > 0) {
         try {
           await sendWhatsAppStayGallery(
