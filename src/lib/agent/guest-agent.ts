@@ -69,6 +69,8 @@ type Session = {
   bookingId?: string;
   paymentIntentId?: string;
   payUrl?: string;
+  /** CTA for /booking/[id] — opens in WhatsApp in-app browser */
+  bookingStatusUrl?: string;
 };
 
 const sessions = new Map<string, Session>();
@@ -109,6 +111,7 @@ export function hydrateGuestSession(
   if (saved.bookingId) s.bookingId = saved.bookingId;
   if (saved.paymentIntentId) s.paymentIntentId = saved.paymentIntentId;
   if (saved.payUrl) s.payUrl = saved.payUrl;
+  if (saved.bookingStatusUrl) s.bookingStatusUrl = saved.bookingStatusUrl;
   return s;
 }
 
@@ -126,8 +129,79 @@ function addDays(base: Date, n: number) {
 
 function parseDates(text: string, now = new Date()): { checkIn?: string; checkOut?: string } {
   const lower = text.toLowerCase();
+  const year = now.getUTCFullYear();
   const iso = [...text.matchAll(/\b(20\d{2})-(\d{2})-(\d{2})\b/g)].map((m) => m[0]);
   if (iso.length >= 2) return { checkIn: iso[0], checkOut: iso[1] };
+
+  const months: Record<string, number> = {
+    jan: 1,
+    january: 1,
+    feb: 2,
+    february: 2,
+    mar: 3,
+    march: 3,
+    apr: 4,
+    april: 4,
+    may: 5,
+    jun: 6,
+    june: 6,
+    jul: 7,
+    july: 7,
+    aug: 8,
+    august: 8,
+    sep: 9,
+    sept: 9,
+    september: 9,
+    oct: 10,
+    october: 10,
+    nov: 11,
+    november: 11,
+    dec: 12,
+    december: 12,
+  };
+
+  // "2nd of October - 5th of October" / "October 2nd - October 5th" / "2'd of October"
+  const monthRange = text.match(
+    /\b(\d{1,2})(?:st|nd|rd|th|['’]?d)?\s*(?:of\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(?:-|–|to|until|till)+\s*(\d{1,2})(?:st|nd|rd|th|['’]?d)?(?:\s*(?:of\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?))?\b/i,
+  );
+  if (monthRange) {
+    const d1 = Number(monthRange[1]);
+    const m1 = months[monthRange[2].toLowerCase().slice(0, 3)] ?? months[monthRange[2].toLowerCase()];
+    const d2 = Number(monthRange[3]);
+    const m2Name = monthRange[4] || monthRange[2];
+    const m2 = months[m2Name.toLowerCase().slice(0, 3)] ?? months[m2Name.toLowerCase()];
+    if (m1 && m2) {
+      let y1 = year;
+      let y2 = year;
+      // if month already passed this year, assume next year
+      const nowM = now.getUTCMonth() + 1;
+      if (m1 < nowM || (m1 === nowM && d1 < now.getUTCDate())) y1 += 1;
+      if (m2 < m1 || (m2 === m1 && d2 < d1)) y2 = y1 + (m2 < m1 ? 1 : 0);
+      else y2 = y1;
+      return {
+        checkIn: `${y1}-${String(m1).padStart(2, "0")}-${String(d1).padStart(2, "0")}`,
+        checkOut: `${y2}-${String(m2).padStart(2, "0")}-${String(d2).padStart(2, "0")}`,
+      };
+    }
+  }
+
+  const monthFirst = text.match(
+    /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th|['’]?d)?\s*(?:-|–|to)+\s*(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+)?(\d{1,2})(?:st|nd|rd|th|['’]?d)?\b/i,
+  );
+  if (monthFirst) {
+    const m1 = months[monthFirst[1].toLowerCase().slice(0, 3)] ?? months[monthFirst[1].toLowerCase()];
+    const d1 = Number(monthFirst[2]);
+    const d2 = Number(monthFirst[3]);
+    if (m1) {
+      let y = year;
+      const nowM = now.getUTCMonth() + 1;
+      if (m1 < nowM || (m1 === nowM && d1 < now.getUTCDate())) y += 1;
+      return {
+        checkIn: `${y}-${String(m1).padStart(2, "0")}-${String(d1).padStart(2, "0")}`,
+        checkOut: `${y}-${String(m1).padStart(2, "0")}-${String(d2).padStart(2, "0")}`,
+      };
+    }
+  }
 
   const dec = text.match(
     /\b(?:dec(?:ember)?\s*)?(\d{1,2})(?:st|nd|rd|th)?\s*(?:-|–|to)+\s*(\d{1,2})(?:st|nd|rd|th)?(?:\s*dec(?:ember)?)?\b/i,
@@ -205,15 +279,24 @@ function parseCityArea(text: string): { city?: string; area?: string } {
     return { city: "Holetown", area: undefined };
   if (/mexico\s*city|\bpolanco\b/i.test(lower)) return { city: "Mexico City" };
 
+  // Prefer "in/at/around CITY" — never "to book…" / "for another…"
   const inAt = text.match(
-    /\b(?:in|at|around|to|for)\s+([A-Za-z][A-Za-z\s-]{1,28}?)(?:\s+(?:from|for|dec|jan|with|looking|detty)|[,.!?]|$)/i,
+    /\b(?:in|at|around)\s+([A-Za-z][A-Za-z\s-]{1,28}?)(?:\s+(?:from|for|dec|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|with|looking|detty)|[,.!?]|$)/i,
   );
   if (inAt) {
     const place = inAt[1].trim();
-    if (/^(detty|december|christmas|new\s*year)$/i.test(place)) return {};
+    if (
+      /^(detty|december|christmas|new\s*year|book|another|apartment|stay|place|room)$/i.test(
+        place,
+      )
+    ) {
+      return {};
+    }
     if (/lekki|ikoyi|vi|oniru|ghana|accra/i.test(place))
       return parseCityArea(place);
-    return { city: place };
+    if (place.split(/\s+/).length <= 3 && !/\b(book|want|need|looking)\b/i.test(place)) {
+      return { city: place };
+    }
   }
   return {};
 }
@@ -501,10 +584,11 @@ export async function handleGuestMessageRules(input: {
       process.env.NEXT_PUBLIC_APP_URL ||
       process.env.APP_URL ||
       "https://pellows.netlify.app";
+    s.bookingStatusUrl = `${base.replace(/\/$/, "")}/booking/${b.id}`;
     return (
       `Your latest booking:\n*${b.listingTitle}* · ${b.city}\n` +
       `${b.checkIn} → ${b.checkOut} · ${b.guests} guests · ${b.status}\n\n` +
-      `Status page: ${base.replace(/\/$/, "")}/booking/${b.id}`
+      `Tap *Open booking* below — stays inside WhatsApp.`
     );
   }
 
@@ -563,6 +647,16 @@ export async function handleGuestMessageRules(input: {
 
   // Absorb info from every message
   absorb(text, s);
+
+  // "book another" with dates but no city → reuse last booking city
+  if (
+    !s.city &&
+    input.lastBooking?.city &&
+    /\b(another|again|new)\b/i.test(lower) &&
+    (s.checkIn || /\boctober|december|\d{1,2}(?:st|nd|rd|th)/i.test(lower))
+  ) {
+    s.city = input.lastBooking.city;
+  }
 
   // Greeting — don’t re-intro if we already started
   if (decision.intent === "greeting" || /^(hi|hello|hey|yo|good\s*(morning|evening|day))\b/i.test(text)) {

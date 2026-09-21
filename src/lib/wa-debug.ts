@@ -8,6 +8,7 @@ export type WaDebugEvent = {
   text?: string;
   replied?: boolean;
   error?: string;
+  llm?: string;
 };
 
 const DEBUG_EXTERNAL_ID = "wa:__debug__";

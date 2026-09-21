@@ -17,6 +17,7 @@ type PersistedSession = {
   bookingId?: string;
   paymentIntentId?: string;
   payUrl?: string;
+  bookingStatusUrl?: string;
 };
 
 export async function loadConversationState(
@@ -55,6 +56,7 @@ export async function saveConversationState(
     bookingId: session.bookingId,
     paymentIntentId: session.paymentIntentId,
     payUrl: session.payUrl,
+    bookingStatusUrl: session.bookingStatusUrl,
   };
   try {
     await prisma.conversation.update({

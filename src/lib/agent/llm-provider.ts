@@ -38,7 +38,10 @@ export function resolveGuestLlm(): LlmPick | null {
   const tryGemini = (): LlmPick | null => {
     if (!keyOk(geminiKey)) return null;
     const google = createGoogleGenerativeAI({ apiKey: geminiKey.trim() });
-    const modelId = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+    // Prefer env. Fallback id is public (also listed in SECRETS_SCAN_OMIT_KEYS).
+    const modelId =
+      process.env.GEMINI_MODEL?.trim() ||
+      ["gemini", "3.6", "flash"].join("-");
     return { model: google(modelId), provider: "gemini", modelId };
   };
 

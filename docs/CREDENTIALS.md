@@ -128,7 +128,7 @@ Until then: agencies use **URL + iCal + CSV** on `/host/import`.
 | `ADMIN_SECRET` | Verify agencies (`POST /api/v1/admin/hosts/:id/verify`) |
 | `LLM_CHANNEL_SECRET` | External AI tool invoke |
 | `GEMINI_API_KEY` | **Guest chat brain** (Google AI Studio) — required on Netlify for smart WA replies |
-| `GEMINI_MODEL` | Default `gemini-3.6-flash` |
+| `GEMINI_MODEL` | Optional public model id (omit from secrets scan) |
 | `PELLOWS_USE_LLM` | Set `0` only to force rules engine |
 | `OPENAI_API_KEY` | Optional fallback LLM |
 | `MODEL_API_KEY` | Optional Muse (usually blocked) |

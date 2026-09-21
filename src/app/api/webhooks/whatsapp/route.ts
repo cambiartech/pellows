@@ -14,6 +14,7 @@ import {
   hydrateGuestSession,
   peekGuestSession,
 } from "@/lib/agent/guest-agent";
+import { hasGuestLlm } from "@/lib/agent/llm-provider";
 import {
   loadConversationState,
   loadLastBooking,
@@ -226,6 +227,19 @@ export async function POST(request: Request) {
           console.error("[pellows.whatsapp.cta]", err);
         }
       }
+      if (session?.bookingStatusUrl) {
+        try {
+          await sendWhatsAppCtaUrl(
+            waPhone,
+            "View your booking status without leaving WhatsApp.",
+            "Open booking",
+            session.bookingStatusUrl,
+          );
+          session.bookingStatusUrl = undefined;
+        } catch (err) {
+          console.error("[pellows.whatsapp.status-cta]", err);
+        }
+      }
 
       await recordWaDebug({
         at: new Date().toISOString(),
@@ -237,6 +251,7 @@ export async function POST(request: Request) {
         from: waPhone,
         text: text.slice(0, 80),
         replied: !(sent && "dryRun" in sent && sent.dryRun),
+        llm: hasGuestLlm() ? "on" : "rules",
       });
     } else {
       await recordWaDebug({

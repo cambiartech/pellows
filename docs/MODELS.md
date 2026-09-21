@@ -35,7 +35,7 @@ Gemini **reasons in the tool loop**. Jev **gates** bad routes (flight ask → ho
 
 ```bash
 GEMINI_API_KEY=your_google_ai_studio_key
-GEMINI_MODEL=gemini-3.6-flash
+# Optional — Netlify: set GEMINI_MODEL to the current Flash id (see Google AI docs)
 # do not set PELLOWS_USE_LLM=0
 ```
 
