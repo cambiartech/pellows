@@ -4,10 +4,10 @@
  */
 
 import { generateText, stepCountIs, tool } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { invokeTool } from "@/lib/agent/tools";
 import { decideGuestTurn, replyForIntent } from "@/lib/agent/decisions";
+import { hasGuestLlm, resolveGuestLlm } from "@/lib/agent/llm-provider";
 import { searchListings, type SearchHit } from "@/lib/search";
 
 function money(amount: number, currency: string) {
@@ -49,6 +49,7 @@ type StayCard = {
   bedrooms: number | null;
   amenities: string[];
   blurb: string;
+  photoUrl?: string | null;
 };
 
 type Session = {
@@ -103,12 +104,24 @@ function parseDates(text: string, now = new Date()): { checkIn?: string; checkOu
   if (iso.length >= 2) return { checkIn: iso[0], checkOut: iso[1] };
 
   const dec = text.match(
-    /\b(?:dec(?:ember)?\s*)?(\d{1,2})\s*(?:-|–|to)+\s*(\d{1,2})(?:\s*dec(?:ember)?)?\b/i,
+    /\b(?:dec(?:ember)?\s*)?(\d{1,2})(?:st|nd|rd|th)?\s*(?:-|–|to)+\s*(\d{1,2})(?:st|nd|rd|th)?(?:\s*dec(?:ember)?)?\b/i,
   );
   if (dec) {
     return {
       checkIn: `2026-12-${dec[1].padStart(2, "0")}`,
       checkOut: `2026-12-${dec[2].padStart(2, "0")}`,
+    };
+  }
+
+  // "Dec 20th" alone → assume ~week stay
+  const decOne = text.match(
+    /\bdec(?:ember)?\s*(\d{1,2})(?:st|nd|rd|th)?\b/i,
+  );
+  if (decOne && !dec) {
+    const d = Number(decOne[1]);
+    return {
+      checkIn: `2026-12-${String(d).padStart(2, "0")}`,
+      checkOut: `2026-12-${String(Math.min(31, d + 5)).padStart(2, "0")}`,
     };
   }
 
@@ -160,16 +173,19 @@ function parseCityArea(text: string): { city?: string; area?: string } {
   if (/\byaba\b/.test(lower)) return { city: "Lagos", area: "Yaba" };
   if (/\blagos\b/.test(lower)) return { city: "Lagos" };
   if (/\babuja\b/.test(lower)) return { city: "Abuja" };
+  if (/\baccra\b|\bghana\b|\bkumasi\b/.test(lower))
+    return { city: "Accra" };
   if (/\bbarbados\b|\bholetown\b/.test(lower))
     return { city: "Holetown", area: undefined };
   if (/mexico\s*city|\bpolanco\b/i.test(lower)) return { city: "Mexico City" };
 
   const inAt = text.match(
-    /\b(?:in|at|around)\s+([A-Za-z][A-Za-z\s-]{1,28}?)(?:\s+(?:from|for|dec|jan|with|looking)|[,.!?]|$)/i,
+    /\b(?:in|at|around|to|for)\s+([A-Za-z][A-Za-z\s-]{1,28}?)(?:\s+(?:from|for|dec|jan|with|looking|detty)|[,.!?]|$)/i,
   );
   if (inAt) {
     const place = inAt[1].trim();
-    if (/lekki|ikoyi|vi|oniru/i.test(place))
+    if (/^(detty|december|christmas|new\s*year)$/i.test(place)) return {};
+    if (/lekki|ikoyi|vi|oniru|ghana|accra/i.test(place))
       return parseCityArea(place);
     return { city: place };
   }
@@ -226,6 +242,7 @@ function toCard(hit: SearchHit): StayCard {
     bedrooms: hit.bedrooms,
     amenities: hit.amenities,
     blurb: bits.join(" · "),
+    photoUrl: hit.photoUrls?.[0] || null,
   };
 }
 
@@ -377,18 +394,24 @@ function looksLikeName(text: string): boolean {
 }
 
 async function runSearch(s: Session) {
-  const { results } = await searchListings({
-    city: s.city,
-    checkIn: s.checkIn,
-    checkOut: s.checkOut,
-    guests: s.guests,
-    kind: "STAY",
-    limit: 12,
-  });
-  const cards = filterByPrefs(results.map(toCard), s);
-  s.results = cards;
-  s.phase = "showing";
-  return cards;
+  try {
+    const { results } = await searchListings({
+      city: s.city,
+      checkIn: s.checkIn,
+      checkOut: s.checkOut,
+      guests: s.guests,
+      kind: "STAY",
+      limit: 12,
+    });
+    const cards = filterByPrefs(results.map(toCard), s);
+    s.results = cards;
+    s.phase = "showing";
+    return cards;
+  } catch (err) {
+    console.error("[pellows.agent.search]", err);
+    s.results = [];
+    return [];
+  }
 }
 
 async function createHoldAndPayLink(
@@ -469,8 +492,15 @@ export async function handleGuestMessageRules(input: {
   }
 
   if (decision.intent === "start_book") {
+    if (s.phase === "greeting") s.phase = "collecting";
+    if (s.city && s.checkIn && s.checkOut) {
+      return `You’re in booking mode — ${s.area || s.city}, ${s.checkIn} → ${s.checkOut}. Say “show me options” or tweak guests/vibe.`;
+    }
+    if (s.city) {
+      return `Booking for *${s.city}* — which dates? (e.g. Dec 20–25 or Detty)`;
+    }
     s.phase = "collecting";
-    return "Let’s book. Where should I look — Lagos, Lekki, VI, Ikoyi, Abuja… — and which dates?";
+    return "Let’s book. Drop city + dates in one line — e.g. “Lagos Dec 20–25 for 4” or “2 bed Lekki for Detty”.";
   }
 
   // Pay reminder
@@ -494,26 +524,20 @@ export async function handleGuestMessageRules(input: {
   // Absorb info from every message
   absorb(text, s);
 
-  // Greeting
-  if (
-    decision.intent === "greeting" ||
-    s.phase === "greeting" ||
-    /^(hi|hello|hey|yo|good\s*(morning|evening|day))\b/i.test(text)
-  ) {
-    if (s.phase === "greeting") s.phase = "collecting";
-    absorb(text, s);
-    const need = missingPrompt(s);
-    if (
-      /stay|book|shortlet|apartment|villa|detty|need|looking|want/i.test(lower) ||
-      s.city ||
-      s.checkIn
-    ) {
-      if (need) {
-        return `Happy to help you book.\n\n${need}`;
-      }
-    } else if (decision.intent === "greeting" || /^(hi|hello|hey|yo)/i.test(text)) {
-      return "Hey — I’m Pellows. I’ll help you find a short stay.\n\nWhere are you going, and roughly which dates? (Or say something like “2 bed Lekki Dec 20–27”.)";
+  // Greeting — don’t re-intro if we already started
+  if (decision.intent === "greeting" || /^(hi|hello|hey|yo|good\s*(morning|evening|day))\b/i.test(text)) {
+    const cold = s.phase === "greeting";
+    if (cold) s.phase = "collecting";
+    if (s.city || s.checkIn) {
+      const need = missingPrompt(s);
+      return need
+        ? `Got it — still with you.\n\n${need}`
+        : "Ready when you are — say “show me options” or tweak the vibe.";
     }
+    if (!cold) {
+      return "Still here. City + dates works best — e.g. “Lagos Dec 20–27 for 4” or “Accra for Detty”.";
+    }
+    return "Hey — I’m Pellows. I’ll help you find a short stay.\n\nWhere are you going, and roughly which dates? (Or say something like “2 bed Lekki Dec 20–27”.)";
   }
 
   // Selecting from shown results
@@ -555,19 +579,28 @@ export async function handleGuestMessageRules(input: {
 
   // Ready to search?
   const need = missingPrompt({ ...s, phase: "collecting" });
-  // Don't force vibe if they already asked to search with city+dates
   const canSearch = Boolean(s.city && s.checkIn && s.checkOut);
   if (!canSearch) {
     s.phase = "collecting";
-    if (!s.city) return "Where should I look — Lagos, Lekki, VI, Abuja…?";
+    if (!s.city)
+      return "Where should I look? Say a city (Lagos, Accra, Abuja…) or area (Lekki, VI).";
     if (!s.checkIn || !s.checkOut)
-      return "Which dates? You can say Dec 20–27, tomorrow, or next weekend.";
+      return `Got *${s.city}*. Which dates — Dec 20–27, tomorrow, next weekend, or “Detty”?`;
     return need || "Tell me a bit more about the stay you want.";
+  }
+
+  // Known thin markets — acknowledge before hitting empty search
+  if (/accra|ghana|kumasi/i.test(s.city || "")) {
+    return (
+      `*${s.city}* for ${s.checkIn} → ${s.checkOut} — heard you.\n\n` +
+      `I don’t have LIVE Ghana inventory yet (Lagos shortlets are live today). ` +
+      `Want Lagos Detty options while we onboard Accra hosts, or keep ${s.city} on the wishlist?`
+    );
   }
 
   // Ask vibe once if never set and first search
   if (s.vibe.length === 0 && s.phase === "collecting" && !/any|whatever|surprise|just\s+show/i.test(lower)) {
-    if (!parseVibe(text).length && !/show|find|search|available|options/i.test(lower)) {
+    if (!parseVibe(text).length && !/show|find|search|available|options|moving|need|want/i.test(lower)) {
       s.phase = "collecting";
       return `${s.area || s.city} · ${s.checkIn} → ${s.checkOut} · ${s.guests} guests.\n\nWhat vibe — pool, beach, quiet, party-ready, or budget? Or say “show me options”.`;
     }
@@ -575,7 +608,16 @@ export async function handleGuestMessageRules(input: {
 
   const cards = await runSearch(s);
   if (!cards.length) {
-    return `No live stays for ${s.city} on those dates. Try different dates or another area?`;
+    const place = s.area || s.city;
+    const isThinMarket = /accra|ghana|kumasi/i.test(place || "");
+    if (isThinMarket) {
+      return (
+        `*${place}* for ${s.checkIn} → ${s.checkOut} — heard you loud and clear.\n\n` +
+        `I don’t have LIVE Ghana inventory yet (Lagos shortlets are live today). ` +
+        `Want Lagos Detty options while we onboard Accra hosts, or keep ${place} on the wishlist?`
+      );
+    }
+    return `No live stays for ${place} on those dates. Try different dates or another city?`;
   }
 
   const vibeNote = s.vibe.length ? ` (${s.vibe.join(", ")})` : "";
@@ -586,96 +628,108 @@ export async function handleGuestMessageRules(input: {
   );
 }
 
-/** LLM path — Meta Model API (Muse) preferred, else OpenAI. Same tools + pay links. */
+/** LLM path — Gemini preferred (WhatsApp latency), else OpenAI / Meta. Same tools. */
 export async function handleGuestMessageLlm(input: {
   text: string;
   guestPhone: string;
   history: { role: "user" | "assistant"; content: string }[];
 }): Promise<string> {
-  const metaKey = process.env.MODEL_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
-  const apiKey = metaKey || openaiKey;
-  if (!apiKey) return handleGuestMessageRules(input);
-
-  const provider = createOpenAI({
-    apiKey,
-    ...(metaKey ? { baseURL: "https://api.meta.ai/v1" } : {}),
-  });
-  const modelId = metaKey
-    ? process.env.MODEL_API_MODEL || "muse-spark-1.3"
-    : process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const pick = resolveGuestLlm();
+  if (!pick) return handleGuestMessageRules(input);
 
   const base = appBaseUrl();
 
-  const result = await generateText({
-    model: provider(modelId),
-    system: `You are Pellows, a warm short-stay booking agent (WhatsApp).
+  try {
+    const result = await generateText({
+      model: pick.model,
+      system: `You are Pellows, a warm short-stay booking agent (WhatsApp).
 Have a natural conversation. Ask where, when, how many guests, and what vibe (pool, beach, quiet, budget).
-NEVER invent stays — only tool results. Present 2–4 options in plain language.
+NEVER invent stays - only tool results. Present 2-4 options in plain language.
 When they pick one, create_hold then start_payment (method CARD).
 Then reply with the pay link: ${base}/pay/{paymentIntentId}
 Do NOT paste raw bank account numbers in chat. Payments happen in-app.
-Amounts from tools are minor units — divide by 100 when speaking.
-Guest phone: ${input.guestPhone}`,
-    messages: [
-      ...input.history.map((m) => ({ role: m.role, content: m.content })),
-      { role: "user" as const, content: input.text },
-    ],
-    tools: {
-      search_stays: tool({
-        description: "Search live inventory",
-        inputSchema: z.object({
-          city: z.string().optional(),
-          checkIn: z.string().optional(),
-          checkOut: z.string().optional(),
-          guests: z.number().int().optional(),
-          q: z.string().optional(),
+Amounts from tools are minor units - divide by 100 when speaking.
+If they ask for flights or full holiday plans, acknowledge the vision and book the stay first.
+Guest phone: ${input.guestPhone}
+(Provider: ${pick.provider}/${pick.modelId})`,
+      messages: [
+        ...input.history.map((m) => ({ role: m.role, content: m.content })),
+        { role: "user" as const, content: input.text },
+      ],
+      tools: {
+        search_stays: tool({
+          description: "Search live inventory",
+          inputSchema: z.object({
+            city: z.string().optional(),
+            checkIn: z.string().optional(),
+            checkOut: z.string().optional(),
+            guests: z.number().int().optional(),
+            q: z.string().optional(),
+          }),
+          execute: async (args) => {
+            const raw = (await invokeTool(
+              "search_stays",
+              { ...args, kind: "STAY" },
+              "WHATSAPP",
+            )) as { results?: SearchHit[] };
+            const hits = raw.results ?? [];
+            const s = getSession(input.guestPhone);
+            if (args.city) s.city = args.city;
+            if (args.checkIn) s.checkIn = args.checkIn;
+            if (args.checkOut) s.checkOut = args.checkOut;
+            if (args.guests) s.guests = args.guests;
+            const cards = hits.slice(0, 4).map(toCard);
+            s.results = cards;
+            s.phase = "showing";
+            return { ...raw, results: cards };
+          },
         }),
-        execute: async (args) =>
-          invokeTool("search_stays", { ...args, kind: "STAY" }, "WHATSAPP"),
-      }),
-      create_hold: tool({
-        description: "Hold dates",
-        inputSchema: z.object({
-          listingId: z.string(),
-          checkIn: z.string(),
-          checkOut: z.string(),
-          guests: z.number().int(),
-          guestName: z.string(),
+        create_hold: tool({
+          description: "Hold dates",
+          inputSchema: z.object({
+            listingId: z.string(),
+            checkIn: z.string(),
+            checkOut: z.string(),
+            guests: z.number().int(),
+            guestName: z.string(),
+          }),
+          execute: async (args) =>
+            invokeTool(
+              "create_hold",
+              { ...args, guestPhone: input.guestPhone },
+              "WHATSAPP",
+            ),
         }),
-        execute: async (args) =>
-          invokeTool(
-            "create_hold",
-            { ...args, guestPhone: input.guestPhone },
-            "WHATSAPP",
-          ),
-      }),
-      start_payment: tool({
-        description: "Create payment intent; guest pays in-app",
-        inputSchema: z.object({
-          bookingId: z.string(),
-          method: z.enum(["CARD", "BANK_RAIL", "CRYPTO"]).default("CARD"),
+        start_payment: tool({
+          description: "Create payment intent; guest pays in-app",
+          inputSchema: z.object({
+            bookingId: z.string(),
+            method: z.enum(["CARD", "BANK_RAIL", "CRYPTO"]).default("CARD"),
+          }),
+          execute: async (args) => {
+            const pay = (await invokeTool(
+              "start_payment",
+              args,
+              "WHATSAPP",
+            )) as { paymentIntentId: string };
+            return {
+              ...pay,
+              payUrl: `${base}/pay/${pay.paymentIntentId}`,
+            };
+          },
         }),
-        execute: async (args) => {
-          const pay = (await invokeTool(
-            "start_payment",
-            args,
-            "WHATSAPP",
-          )) as { paymentIntentId: string };
-          return {
-            ...pay,
-            payUrl: `${base}/pay/${pay.paymentIntentId}`,
-          };
-        },
-      }),
-    },
-    stopWhen: stepCountIs(10),
-  });
+      },
+      stopWhen: stepCountIs(10),
+    });
 
-  return (
-    result.text ||
-    "Tell me where you want to stay and which dates — I’ll find options."
-  );
+    return (
+      result.text ||
+      "Tell me where you want to stay and which dates - I will find options."
+    );
+  } catch (err) {
+    console.error("[pellows.agent.llm]", pick.provider, err);
+    return handleGuestMessageRules(input);
+  }
 }
 
 export async function handleGuestMessage(input: {
@@ -684,10 +738,8 @@ export async function handleGuestMessage(input: {
   guestName?: string;
   history?: { role: "user" | "assistant"; content: string }[];
 }) {
-  // Rules engine by default. Set PELLOWS_USE_LLM=1 + MODEL_API_KEY (Meta) or OPENAI_API_KEY.
-  const hasLlm =
-    Boolean(process.env.MODEL_API_KEY) || Boolean(process.env.OPENAI_API_KEY);
-  if (process.env.PELLOWS_USE_LLM === "1" && hasLlm) {
+  // Prefer LLM when a real key exists. Set PELLOWS_USE_LLM=0 to force rules.
+  if (hasGuestLlm()) {
     return handleGuestMessageLlm({
       text: input.text,
       guestPhone: input.guestPhone,

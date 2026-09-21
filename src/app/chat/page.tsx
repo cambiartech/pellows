@@ -3,13 +3,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SendHorizonal } from "lucide-react";
 
-type Msg = { id: string; role: "user" | "assistant"; content: string; at: number };
+type Msg = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  at: number;
+  buttons?: { id: string; title: string }[];
+  stays?: { id: string; title: string; description: string; photoUrl?: string }[];
+  payUrl?: string;
+};
 
 const SUGGESTIONS = [
-  "Hey, need a place for Detty",
+  "I am moving to Ghana for Detty December",
   "Lagos Dec 20-27 for 4",
   "Something with a pool in Lekki",
-  "the beach one",
+  "show me options",
 ];
 
 function uid() {
@@ -17,7 +25,7 @@ function uid() {
 }
 
 export default function ChatPage() {
-  const [phone] = useState("2348000000099");
+  const [phone] = useState(() => `2348${Date.now().toString().slice(-8)}`);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([
@@ -26,7 +34,11 @@ export default function ChatPage() {
       role: "assistant",
       at: Date.now(),
       content:
-        "Hey — I'm Pellows.\n\nTell me where you want to stay, roughly when, and what vibe you're after (pool, beach, quiet, budget…).",
+        "Welcome to Pellows — short-stay booking from chat.\n\nTap below or tell me city + dates.",
+      buttons: [
+        { id: "start:book", title: "Find a stay" },
+        { id: "start:help", title: "How it works" },
+      ],
     },
   ]);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -39,13 +51,14 @@ export default function ChatPage() {
   }, [messages, busy]);
 
   const send = useCallback(
-    async (raw?: string) => {
+    async (raw?: string, displayAs?: string) => {
       const trimmed = (raw ?? text).trim();
       if (!trimmed || busy) return;
+      const shown = (displayAs ?? trimmed).trim();
       setText("");
       setMessages((m) => [
         ...m,
-        { id: uid(), role: "user", content: trimmed, at: Date.now() },
+        { id: uid(), role: "user", content: shown, at: Date.now() },
       ]);
       setBusy(true);
       try {
@@ -60,6 +73,11 @@ export default function ChatPage() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Failed");
+        const ui = data.ui as {
+          buttons?: Msg["buttons"];
+          stays?: Msg["stays"];
+          payUrl?: string;
+        } | undefined;
         setMessages((m) => [
           ...m,
           {
@@ -67,6 +85,9 @@ export default function ChatPage() {
             role: "assistant",
             content: data.reply as string,
             at: Date.now(),
+            buttons: ui?.buttons,
+            stays: ui?.stays,
+            payUrl: ui?.payUrl,
           },
         ]);
       } catch (e) {
@@ -112,7 +133,6 @@ export default function ChatPage() {
           color: "#e9edef",
         }}
       >
-        {/* Header — contained inside phone */}
         <div
           style={{
             display: "flex",
@@ -163,7 +183,6 @@ export default function ChatPage() {
           </span>
         </div>
 
-        {/* Messages */}
         <div
           ref={scrollerRef}
           style={{
@@ -186,7 +205,7 @@ export default function ChatPage() {
                 padding: "6px 12px",
               }}
             >
-              WhatsApp simulator
+              Local sim · buttons mirror WhatsApp
             </span>
           </div>
 
@@ -194,43 +213,153 @@ export default function ChatPage() {
             {messages.map((m) => {
               const mine = m.role === "user";
               return (
-                <div
-                  key={m.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: mine ? "flex-end" : "flex-start",
-                  }}
-                >
+                <div key={m.id}>
                   <div
                     style={{
-                      maxWidth: "85%",
-                      borderRadius: 16,
-                      borderTopRightRadius: mine ? 4 : 16,
-                      borderTopLeftRadius: mine ? 16 : 4,
-                      padding: "8px 12px",
-                      background: mine ? "#005c4b" : "#202c33",
-                      color: "#e9edef",
-                      fontSize: 15,
-                      lineHeight: 1.45,
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
+                      display: "flex",
+                      justifyContent: mine ? "flex-end" : "flex-start",
                     }}
                   >
-                    {m.content}
                     <div
                       style={{
-                        marginTop: 4,
-                        fontSize: 10,
-                        textAlign: "right",
-                        color: mine ? "#aebac1" : "#8696a0",
+                        maxWidth: "85%",
+                        borderRadius: 16,
+                        borderTopRightRadius: mine ? 4 : 16,
+                        borderTopLeftRadius: mine ? 16 : 4,
+                        padding: "8px 12px",
+                        background: mine ? "#005c4b" : "#202c33",
+                        color: "#e9edef",
+                        fontSize: 15,
+                        lineHeight: 1.45,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
                       }}
                     >
-                      {new Date(m.at).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {m.content}
+                      <div
+                        style={{
+                          marginTop: 4,
+                          fontSize: 10,
+                          textAlign: "right",
+                          color: mine ? "#aebac1" : "#8696a0",
+                        }}
+                      >
+                        {new Date(m.at).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
                     </div>
                   </div>
+
+                  {!mine && m.buttons && m.buttons.length > 0 && (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        marginLeft: 4,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 6,
+                        maxWidth: "85%",
+                      }}
+                    >
+                      {m.buttons.map((b) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            if (b.id === "pay" && m.payUrl) {
+                              window.open(m.payUrl, "_blank");
+                              return;
+                            }
+                            void send(b.id, b.title);
+                          }}
+                          style={{
+                            borderRadius: 10,
+                            border: "1px solid rgba(0,168,132,0.5)",
+                            background: "#1a2a30",
+                            color: "#00a884",
+                            fontSize: 14,
+                            fontWeight: 600,
+                            padding: "10px 14px",
+                            cursor: busy ? "default" : "pointer",
+                            textAlign: "center",
+                          }}
+                        >
+                          {b.title}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {!mine && m.stays && m.stays.length > 0 && (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        marginLeft: 4,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 6,
+                        maxWidth: "90%",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: 11,
+                          color: "#8696a0",
+                          margin: "4px 0 0",
+                        }}
+                      >
+                        Choose stay
+                      </p>
+                      {m.stays.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void send(s.id)}
+                          style={{
+                            borderRadius: 10,
+                            border: "1px solid rgba(255,255,255,0.12)",
+                            background: "#1a2a30",
+                            color: "#e9edef",
+                            fontSize: 13,
+                            padding: 0,
+                            cursor: busy ? "default" : "pointer",
+                            textAlign: "left",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {s.photoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={s.photoUrl}
+                              alt=""
+                              style={{
+                                width: "100%",
+                                height: 120,
+                                objectFit: "cover",
+                                display: "block",
+                              }}
+                            />
+                          ) : null}
+                          <span style={{ display: "block", padding: "10px 12px" }}>
+                            <strong style={{ color: "#00a884" }}>{s.title}</strong>
+                            <span
+                              style={{
+                                display: "block",
+                                color: "#8696a0",
+                                marginTop: 2,
+                              }}
+                            >
+                              {s.description}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -254,7 +383,6 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Composer */}
         <div
           style={{
             flexShrink: 0,

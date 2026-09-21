@@ -48,7 +48,7 @@ See **[CONVERSATION_FLOW.md](./CONVERSATION_FLOW.md)** for how chat talks to tha
 | Search | **Postgres now** → **Typesense/Meilisearch when agencies scale** | Multi-agency LIVE inventory; availability in-query; see SEARCH.md |
 | Agent | **Shared tool API** (`search`, `hold`, `pay`, `confirm`) | One brain for WhatsApp, web, ChatGPT, Gemini |
 | Decide | **Rules → Jev (TypeSafe)** for intent/slots | Typed routing; no hallucinated tool calls |
-| Speak | **LLM optional** (OpenAI / Meta) | Warm copy only; inventory from tools |
+| Speak | **Gemini 2.5 Flash** (default) · OpenAI/Claude later | WA latency + tool calls; inventory from tools only |
 | Payments | **Pellows-owned rails** (card / bank / crypto) | Guests pay *us*; we settle hosts |
 | Hosting | **Node host** (Vercel / Fly / Railway / bare) | Not Cloudflare Agents |
 | Realcorp | **Webhook + ID map later** | Speed now; ERP sync after bookings work |

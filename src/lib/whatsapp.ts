@@ -53,6 +53,56 @@ export async function sendWhatsAppText(to: string, body: string) {
   });
 }
 
+/** Image by public HTTPS URL (listing photos). */
+export async function sendWhatsAppImage(
+  to: string,
+  imageUrl: string,
+  caption?: string,
+) {
+  return graphSend({
+    to,
+    type: "image",
+    image: {
+      link: imageUrl,
+      ...(caption ? { caption: caption.slice(0, 1024) } : {}),
+    },
+  });
+}
+
+/** Send up to 4 stay photos then the pick list. */
+export async function sendWhatsAppStayGallery(
+  to: string,
+  stays: {
+    id: string;
+    title: string;
+    description?: string;
+    photoUrl?: string | null;
+  }[],
+  listBody: string,
+) {
+  const withPhotos = stays.filter((s) => s.photoUrl).slice(0, 4);
+  for (const s of withPhotos) {
+    try {
+      await sendWhatsAppImage(
+        to,
+        s.photoUrl!,
+        `${s.title}${s.description ? `\n${s.description}` : ""}`,
+      );
+    } catch (err) {
+      console.error("[pellows.whatsapp.image]", err);
+    }
+  }
+  return sendWhatsAppStayList(
+    to,
+    listBody,
+    stays.map((s) => ({
+      id: s.id,
+      title: s.title,
+      description: s.description,
+    })),
+  );
+}
+
 /** OWO-style welcome: body + reply buttons (Flows come next for forms). */
 export async function sendWhatsAppWelcome(to: string, guestName?: string) {
   const hi = guestName ? `Hi ${guestName.split(" ")[0]}` : "Hey";

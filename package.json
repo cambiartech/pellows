@@ -17,6 +17,7 @@
     "setup": "docker compose up -d && prisma generate && prisma db push && tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.124",
     "@ai-sdk/openai": "^4.0.71",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",

@@ -4,7 +4,7 @@ import {
   conversationHasAssistant,
   getOrCreateWaConversation,
   sendWhatsAppCtaUrl,
-  sendWhatsAppStayList,
+  sendWhatsAppStayGallery,
   sendWhatsAppText,
   sendWhatsAppTyping,
   sendWhatsAppWelcome,
@@ -174,9 +174,8 @@ export async function POST(request: Request) {
       const session = peekGuestSession(guestPhone);
       if (session?.phase === "showing" && session.results.length > 0) {
         try {
-          await sendWhatsAppStayList(
+          await sendWhatsAppStayGallery(
             waPhone,
-            "Tap a stay to continue booking:",
             session.results.map((r, i) => {
               const price = dualPriceLabel(r.basePrice, r.currency);
               return {
@@ -186,8 +185,10 @@ export async function POST(request: Request) {
                   0,
                   72,
                 ),
+                photoUrl: r.photoUrl,
               };
             }),
+            "Tap a stay to continue booking:",
           );
         } catch (err) {
           console.error("[pellows.whatsapp.list]", err);

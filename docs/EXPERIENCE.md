@@ -29,15 +29,15 @@ Guest help: [WhatsApp Flows FAQ](https://faq.whatsapp.com/1137338520520761?local
 **LLM** still owns natural language replies. **Our code** owns search/hold/pay.  
 Set `TYPESAFE_API_KEY` + `PELLOWS_USE_JEV=1` when early access is live; until then rules decide.
 
-### WhatsApp Flows (next UX tier)
+### WhatsApp: photos + “don’t leave the app”
 
-Flows = native multi-screen forms in chat ([Meta best practices](https://developers.facebook.com/docs/whatsapp/flows/guides/bestpractices/)). Use for:
+| Need | Mechanism | Status |
+|------|-----------|--------|
+| Stay photos in chat | Cloud API **image** messages (HTTPS links) then list pick | ✅ wired |
+| Mono-style overlay forms | **WhatsApp Flows** (native Meta screens — not our iframe) | next (B4.2d) |
+| Pay / external page in-WA | **CTA URL** opens WhatsApp’s **in-app browser** (Meta webview; eligibility rules apply) | ✅ CTA pay button |
 
-1. Dates + guests + vibe (endpoint-powered → live availability)  
-2. Guest name / phone confirm  
-3. Not for free-text “find me something chill” — that’s agent + tools  
-
-Order: **typing + welcome + list/CTA** (shipped) → **Flow: book details** → **Flow: confirm** → holiday modules.
+There is **no** custom “Pellows webview SDK.” Mono’s bank link UI is a **Flow** (or partner Flow) + Meta’s container. For Flutterwave checkout we use CTA → WA in-app browser, or a Flow that collects details then CTA to pay.
 
 ---
 
