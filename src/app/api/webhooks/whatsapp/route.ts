@@ -3,9 +3,6 @@ import {
   appendMessage,
   conversationHasAssistant,
   getOrCreateWaConversation,
-  sendWhatsAppCtaUrl,
-  sendWhatsAppStayGallery,
-  sendWhatsAppText,
   sendWhatsAppTyping,
   sendWhatsAppWelcome,
 } from "@/lib/whatsapp";
@@ -22,7 +19,8 @@ import {
 } from "@/lib/agent/memory";
 import { prisma } from "@/lib/db";
 import { recordWaDebug } from "@/lib/wa-debug";
-import { dualPriceLabel } from "@/lib/money";
+import { deliverTurn } from "@/lib/channels/deliver";
+import { guestTurnFromSession } from "@/lib/channels/turn";
 
 export const runtime = "nodejs";
 
@@ -176,9 +174,14 @@ export async function POST(request: Request) {
         await saveConversationState(conversation.id, session);
       }
 
+      const turn = guestTurnFromSession(reply, session);
       let sent;
       try {
-        sent = await sendWhatsAppText(waPhone, reply);
+        sent = await deliverTurn("whatsapp", waPhone, turn);
+        if (session?.bookingStatusUrl) {
+          session.bookingStatusUrl = undefined;
+          await saveConversationState(conversation.id, session);
+        }
       } catch (err) {
         console.error("[pellows.whatsapp.text]", err);
         await recordWaDebug({
@@ -193,64 +196,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      if (session?.phase === "showing" && session.results.length > 0) {
-        try {
-          await sendWhatsAppStayGallery(
-            waPhone,
-            session.results.map((r, i) => {
-              const price = dualPriceLabel(r.basePrice, r.currency);
-              return {
-                id: `pick:${i + 1}`,
-                title: `${i + 1}. ${(r.neighbourhood || r.city).slice(0, 18)}`,
-                description: `${price.usd || price.primary}/night · ${r.title}`.slice(
-                  0,
-                  72,
-                ),
-                photoUrl: r.photoUrl,
-              };
-            }),
-            "Tap a stay to continue booking:",
-          );
-        } catch (err) {
-          console.error("[pellows.whatsapp.list]", err);
-        }
-      }
-      if (session?.phase === "paying" && session.payUrl) {
-        try {
-          await sendWhatsAppCtaUrl(
-            waPhone,
-            "Secure your dates — card (USD), bank, or crypto on Pellows.",
-            "Pay now",
-            session.payUrl,
-          );
-        } catch (err) {
-          console.error("[pellows.whatsapp.cta]", err);
-        }
-      }
-      if (session?.bookingStatusUrl) {
-        try {
-          await sendWhatsAppCtaUrl(
-            waPhone,
-            "View your booking status without leaving WhatsApp.",
-            "Open booking",
-            session.bookingStatusUrl,
-          );
-          session.bookingStatusUrl = undefined;
-        } catch (err) {
-          console.error("[pellows.whatsapp.status-cta]", err);
-        }
-      }
-
       await recordWaDebug({
         at: new Date().toISOString(),
         method: "POST",
         summary:
-          sent && "dryRun" in sent && sent.dryRun
-            ? "text_dry_run"
-            : "text_replied",
+          sent.dryRun ? "text_dry_run" : "text_replied",
         from: waPhone,
         text: text.slice(0, 80),
-        replied: !(sent && "dryRun" in sent && sent.dryRun),
+        replied: !sent.dryRun,
         llm: (await isGuestLlmEnabled()) ? "on" : "rules",
       });
     } else {

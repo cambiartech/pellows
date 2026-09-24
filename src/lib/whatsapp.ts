@@ -160,7 +160,7 @@ export async function sendWhatsAppStayList(
       type: "list",
       body: { text: bodyText.slice(0, 1024) },
       action: {
-        button: "Choose stay",
+        button: "See stays",
         sections: [
           {
             title: "Available stays",

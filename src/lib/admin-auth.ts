@@ -4,6 +4,11 @@ import { cookies } from "next/headers";
 export const ADMIN_COOKIE = "pellows_admin";
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Username for /admin. Override with ADMIN_EMAIL. */
+export function adminEmail() {
+  return (process.env.ADMIN_EMAIL || "admin@pellows.stay").trim().toLowerCase();
+}
+
 /** Password for /admin — set ADMIN_PASSWORD on Netlify; default for launch testing. */
 export function adminPassword() {
   return (process.env.ADMIN_PASSWORD || "Pass@123").trim();
@@ -17,9 +22,16 @@ function signingSecret() {
   );
 }
 
-export function verifyAdminPassword(password: string) {
-  const expected = adminPassword();
-  const a = Buffer.from(password);
+export function verifyAdminLogin(email: string, password: string) {
+  const expectedEmail = adminEmail();
+  const gotEmail = email.trim().toLowerCase();
+  const emailOk = safeEqual(gotEmail, expectedEmail);
+  const passwordOk = safeEqual(password, adminPassword());
+  return emailOk && passwordOk;
+}
+
+function safeEqual(got: string, expected: string) {
+  const a = Buffer.from(got);
   const b = Buffer.from(expected);
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);

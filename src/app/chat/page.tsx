@@ -3,13 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SendHorizonal } from "lucide-react";
 
+type StayRow = {
+  id: string;
+  title: string;
+  price: string;
+  meta: string;
+  photoUrl?: string;
+};
+
 type Msg = {
   id: string;
   role: "user" | "assistant";
   content: string;
   at: number;
   buttons?: { id: string; title: string }[];
-  stays?: { id: string; title: string; description: string; photoUrl?: string }[];
+  query?: string;
+  stays?: StayRow[];
   payUrl?: string;
 };
 
@@ -75,6 +84,7 @@ export default function ChatPage() {
         if (!res.ok) throw new Error(data.error || "Failed");
         const ui = data.ui as {
           buttons?: Msg["buttons"];
+          query?: string;
           stays?: Msg["stays"];
           payUrl?: string;
         } | undefined;
@@ -86,6 +96,7 @@ export default function ChatPage() {
             content: data.reply as string,
             at: Date.now(),
             buttons: ui?.buttons,
+            query: ui?.query,
             stays: ui?.stays,
             payUrl: ui?.payUrl,
           },
@@ -220,6 +231,7 @@ export default function ChatPage() {
                       justifyContent: mine ? "flex-end" : "flex-start",
                     }}
                   >
+                    {(mine || !m.stays?.length) && (
                     <div
                       style={{
                         maxWidth: "85%",
@@ -250,6 +262,7 @@ export default function ChatPage() {
                         })}
                       </div>
                     </div>
+                    )}
                   </div>
 
                   {!mine && m.buttons && m.buttons.length > 0 && (
@@ -294,70 +307,123 @@ export default function ChatPage() {
                   )}
 
                   {!mine && m.stays && m.stays.length > 0 && (
-                    <div
-                      style={{
-                        marginTop: 6,
-                        marginLeft: 4,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 6,
-                        maxWidth: "90%",
-                      }}
-                    >
-                      <p
+                    <div style={{ maxWidth: "92%" }}>
+                      <div
                         style={{
-                          fontSize: 11,
-                          color: "#8696a0",
-                          margin: "4px 0 0",
+                          borderRadius: 16,
+                          borderTopLeftRadius: 4,
+                          background: "#111b21",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          overflow: "hidden",
                         }}
                       >
-                        Choose stay
-                      </p>
-                      {m.stays.map((s) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void send(s.id)}
+                        <div
                           style={{
-                            borderRadius: 10,
-                            border: "1px solid rgba(255,255,255,0.12)",
-                            background: "#1a2a30",
-                            color: "#e9edef",
-                            fontSize: 13,
-                            padding: 0,
-                            cursor: busy ? "default" : "pointer",
-                            textAlign: "left",
-                            overflow: "hidden",
+                            padding: "10px 12px 8px",
+                            fontSize: 12,
+                            color: "#8696a0",
+                            borderBottom: "1px solid rgba(255,255,255,0.06)",
                           }}
                         >
-                          {s.photoUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={s.photoUrl}
-                              alt=""
-                              style={{
-                                width: "100%",
-                                height: 120,
-                                objectFit: "cover",
-                                display: "block",
-                              }}
-                            />
-                          ) : null}
-                          <span style={{ display: "block", padding: "10px 12px" }}>
-                            <strong style={{ color: "#00a884" }}>{s.title}</strong>
+                          {m.query || "Stays"}
+                        </div>
+                        {m.stays.map((s, i) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void send(s.id, s.title)}
+                            style={{
+                              width: "100%",
+                              display: "flex",
+                              gap: 10,
+                              alignItems: "center",
+                              padding: "10px 12px",
+                              border: "none",
+                              borderTop:
+                                i === 0
+                                  ? "none"
+                                  : "1px solid rgba(255,255,255,0.06)",
+                              background: "transparent",
+                              color: "#e9edef",
+                              cursor: busy ? "default" : "pointer",
+                              textAlign: "left",
+                            }}
+                          >
+                            {s.photoUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={s.photoUrl}
+                                alt=""
+                                style={{
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: 999,
+                                  objectFit: "cover",
+                                  flexShrink: 0,
+                                }}
+                              />
+                            ) : (
+                              <span
+                                style={{
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: 999,
+                                  background: "#0b5552",
+                                  flexShrink: 0,
+                                }}
+                              />
+                            )}
+                            <span style={{ flex: 1, minWidth: 0 }}>
+                              <span
+                                style={{
+                                  display: "block",
+                                  fontSize: 14,
+                                  fontWeight: 600,
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                              >
+                                {s.title}
+                              </span>
+                              <span
+                                style={{
+                                  display: "block",
+                                  marginTop: 2,
+                                  fontSize: 12,
+                                  color: "#8696a0",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                              >
+                                {s.meta}
+                              </span>
+                            </span>
                             <span
                               style={{
-                                display: "block",
-                                color: "#8696a0",
-                                marginTop: 2,
+                                flexShrink: 0,
+                                fontSize: 14,
+                                fontWeight: 700,
+                                color: "#fff",
                               }}
                             >
-                              {s.description}
+                              {s.price}
                             </span>
-                          </span>
-                        </button>
-                      ))}
+                          </button>
+                        ))}
+                      </div>
+                      <p
+                        style={{
+                          margin: "8px 4px 0",
+                          fontSize: 13,
+                          lineHeight: 1.4,
+                          color: "#8696a0",
+                        }}
+                      >
+                        Tap a stay to hold the dates.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -365,19 +431,33 @@ export default function ChatPage() {
             })}
 
             {busy && (
-              <div style={{ display: "flex", justifyContent: "flex-start" }}>
-                <div
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginTop: 4,
+                }}
+              >
+                <span
                   style={{
-                    background: "#202c33",
-                    borderRadius: 16,
-                    borderTopLeftRadius: 4,
-                    padding: "12px 16px",
-                    color: "#8696a0",
+                    width: 28,
+                    height: 28,
+                    borderRadius: 999,
+                    background: "#0b5552",
+                    color: "#f3efe6",
                     fontSize: 13,
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  …
-                </div>
+                  P
+                </span>
+                <span style={{ fontSize: 13, color: "#8696a0" }}>
+                  Pellows is working
+                </span>
               </div>
             )}
           </div>

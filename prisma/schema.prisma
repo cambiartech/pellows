@@ -105,6 +105,40 @@ model Host {
   invites  AgencyInvite[]
   agencyOwner Host?  @relation("AgencyStaff", fields: [agencyOwnerId], references: [id])
   staff       Host[] @relation("AgencyStaff")
+  sourceLinks SourceLink[]
+}
+
+/// How an agency connects an outside inventory system.
+/// useSourcePrice: guests see the source nightly rate.
+/// Otherwise Pellows adds markupBps on top of that rate.
+model SourceLink {
+  id               String    @id @default(cuid())
+  hostId           String
+  /// realcorp | airbnb | booking
+  provider         String
+  externalTenantId String?
+  /// Token Realcorp issued for this tenant only, after they opted in.
+  /// Never a key that can read other workspaces.
+  accessToken      String?
+  useSourcePrice   Boolean   @default(true)
+  /// Added when useSourcePrice is false. 1000 = 10%.
+  markupBps        Int       @default(0)
+  lastSyncedAt     DateTime?
+  lastError        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  host Host @relation(fields: [hostId], references: [id], onDelete: Cascade)
+
+  @@unique([hostId, provider])
+  @@index([provider, externalTenantId])
+}
+
+/// A Realcorp webhook eventId we already applied. A repeat is a no-op.
+model RealcorpEvent {
+  eventId   String   @id
+  tenantId  String
+  createdAt DateTime @default(now())
 }
 
 model AgencyInvite {
@@ -177,6 +211,8 @@ model Listing {
   lng            Float?
   /// Realcorp shortlet unit id when linked
   realcorpUnitId String?
+  /// Source nightly rate in minor units, before Pellows markup
+  sourcePrice    Int?
   /// Inbound OTA calendar (Airbnb / Booking / Vrbo iCal)
   icalUrl        String?
   icalSyncedAt   DateTime?

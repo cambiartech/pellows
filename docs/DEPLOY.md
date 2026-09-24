@@ -54,7 +54,7 @@ curl -X POST https://pellows.netlify.app/api/v1/admin/seed \
 | **LLM on?** | `/admin` toggle, or `/api/v1/admin/agent-health` → `llmEnabled: true` |
 | **Verify agency** | `POST /api/v1/admin/hosts/:id/verify` + header `x-admin-secret` |
 
-**Admin UI:** https://pellows.netlify.app/admin — password `ADMIN_PASSWORD` (default `Pass@123`). Toggle Guest LLM there; it overrides Netlify `PELLOWS_USE_LLM=0`.
+**Admin UI:** https://pellows.netlify.app/admin — `admin@pellows.stay` / `ADMIN_PASSWORD` (default `Pass@123`). Toggle Guest LLM there; it overrides Netlify `PELLOWS_USE_LLM=0`.
 
 `ADMIN_SECRET` is still used for header-auth ops (verify / curl seed).
 

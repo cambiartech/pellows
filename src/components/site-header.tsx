@@ -33,6 +33,7 @@ export function SiteHeader() {
   useEffect(() => setMounted(true), []);
 
   const onChat = mounted && pathname === "/chat";
+  if (pathname.startsWith("/admin")) return null;
 
   return (
     <header className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4 md:px-6 md:pt-5">

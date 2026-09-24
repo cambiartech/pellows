@@ -114,7 +114,7 @@ Docs: [WhatsApp Cloud API getting started](https://developers.facebook.com/docs/
 |--------|-------------------|-----------------|
 | **Airbnb** | [Homes API](https://developer.withairbnb.com/) Partner Portal + Sandbox | Client id/secret |
 | **Booking** | [Connectivity](https://developers.booking.com/) and/or Demand API | Partner id + secrets |
-| **Realcorp** | Internal API (brief in [IMPORT_APIS.md](./IMPORT_APIS.md)) | Base URL + API key pattern |
+| **Realcorp** | Internal API ([REALCORP_INTEGRATION.md](./REALCORP_INTEGRATION.md)) | Base URL, app client id/secret, per-tenant token, `REALCORP_WEBHOOK_SECRET` |
 
 Until then: agencies use **URL + iCal + CSV** on `/host/import`.
 
@@ -124,9 +124,13 @@ Until then: agencies use **URL + iCal + CSV** on `/host/import`.
 
 | Env | Purpose |
 |-----|---------|
-| `CRON_SECRET` | Protect `GET /api/cron/ical-sync` |
+| `CRON_SECRET` | Protect `GET /api/cron/ical-sync` and `GET /api/cron/realcorp-sync` |
+| `REALCORP_API_BASE` | Realcorp units URL. Guest chat never calls it |
+| `REALCORP_CLIENT_ID` / `REALCORP_CLIENT_SECRET` | App registration. Cannot read rooms |
+| `REALCORP_WEBHOOK_SECRET` | Verify `POST /api/webhooks/realcorp` |
 | `ADMIN_SECRET` | Verify agencies / curl seed (`x-admin-secret`) |
-| `ADMIN_PASSWORD` | `/admin` UI login (default `Pass@123` if unset) |
+| `ADMIN_EMAIL` | `/admin` login (default `admin@pellows.stay`) |
+| `ADMIN_PASSWORD` | `/admin` password (default `Pass@123` if unset) |
 | `LLM_CHANNEL_SECRET` | External AI tool invoke |
 | `GEMINI_API_KEY` | **Guest chat brain** (Google AI Studio) — required on Netlify for smart WA replies |
 | `GEMINI_MODEL` | Optional public model id (omit from secrets scan) |

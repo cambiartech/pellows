@@ -8,6 +8,7 @@ import { AuthField } from "@/components/auth-field";
 export default function AdminLoginPage() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -19,7 +20,7 @@ export default function AdminLoginPage() {
       const res = await fetch("/api/v1/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");
@@ -51,6 +52,18 @@ export default function AdminLoginPage() {
 
         <form onSubmit={onSubmit} className="mt-8 space-y-4" noValidate>
           <AuthField
+            label="Email"
+            type="email"
+            autoComplete="username"
+            placeholder="admin@pellows.stay"
+            required
+            value={email}
+            onChange={(v) => {
+              setEmail(v);
+              setError(null);
+            }}
+          />
+          <AuthField
             label="Password"
             type="password"
             autoComplete="current-password"
@@ -73,7 +86,7 @@ export default function AdminLoginPage() {
 
           <button
             type="submit"
-            disabled={busy || !password}
+            disabled={busy || !password || !email.trim()}
             className="btn-pill btn-primary mt-2 w-full disabled:opacity-50"
           >
             {busy ? "Signing in…" : "Continue"}

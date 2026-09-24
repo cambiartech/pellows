@@ -11,6 +11,8 @@ import {
   isGuestLlmEnabled,
   resolveGuestLlmAsync,
 } from "@/lib/agent/llm-provider";
+import { pendingConnectorReply } from "@/lib/agent/connectors";
+import { optionSheetHeader, optionSheetRows } from "@/lib/agent/option-sheet";
 import type { LastBookingSummary } from "@/lib/agent/memory";
 import { searchListings, type SearchHit } from "@/lib/search";
 
@@ -403,11 +405,9 @@ function filterByPrefs(cards: StayCard[], s: Session): StayCard[] {
 
 function formatResults(cards: StayCard[]): string {
   if (!cards.length) return "I couldn’t find a match with that vibe.";
-  const lines = cards.map((c, i) => {
-    const place = [c.neighbourhood, c.city].filter(Boolean).join(", ");
-    return `${i + 1}) *${c.title}*\n${place} · ${money(c.basePrice, c.currency)}/night${c.blurb ? `\n${c.blurb}` : ""}`;
-  });
-  return lines.join("\n\n");
+  return optionSheetRows(cards)
+    .map((row, i) => `${i + 1}. *${row.title}* — ${row.price}/night\n${row.meta}`)
+    .join("\n\n");
 }
 
 function missingPrompt(s: Session): string | null {
@@ -771,11 +771,11 @@ export async function handleGuestMessageRules(input: {
     return `No live stays for ${place} on those dates. Try different dates or another city?`;
   }
 
-  const vibeNote = s.vibe.length ? ` (${s.vibe.join(", ")})` : "";
+  const vibeNote = s.vibe.length ? ` · ${s.vibe.join(", ")}` : "";
   return (
-    `Here are some stays in ${s.area || s.city}${vibeNote}:\n\n` +
+    `*${optionSheetHeader(s)}${vibeNote}*\n\n` +
     `${formatResults(cards)}\n\n` +
-    `Which one do you like? Say something like “the beach one” or “number 2”.`
+    `Tap one to hold the dates — or say “number 2”.`
   );
 }
 
@@ -895,6 +895,10 @@ export async function handleGuestMessage(input: {
   history?: { role: "user" | "assistant"; content: string }[];
   lastBooking?: LastBookingSummary | null;
 }) {
+  // Cars / food / flights: instant local reply. Never block the stay path on them.
+  const pending = pendingConnectorReply(input.text);
+  if (pending) return pending;
+
   // Prefer LLM when keyed + AppSettings.useLlm (admin /admin toggle).
   if (await isGuestLlmEnabled()) {
     return handleGuestMessageLlm({

@@ -8,6 +8,8 @@ Reusable product & engineering docs. Keep plans here — not scattered in the re
 | [SCOPE.md](./SCOPE.md) | Product thesis, stack, Realcorp bridge |
 | [SEARCH.md](./SEARCH.md) | Multi-agency search architecture |
 | [IMPORT_APIS.md](./IMPORT_APIS.md) | Airbnb / Booking / Realcorp link & import |
+| **[INTEGRATIONS.md](./INTEGRATIONS.md)** | **Operator guide — how to connect rooms and what auto-sync does** |
+| [REALCORP_INTEGRATION.md](./REALCORP_INTEGRATION.md) | Brief to send Realcorp engineering |
 | [SEO_AI.md](./SEO_AI.md) | Google SEO + AI crawler readiness |
 | [ROADMAP.md](./ROADMAP.md) | Diagrams + Detty workflow |
 | **[CREDENTIALS.md](./CREDENTIALS.md)** | How to get Stripe / bank / crypto / WhatsApp / OTA keys |

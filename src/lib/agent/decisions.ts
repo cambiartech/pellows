@@ -67,7 +67,7 @@ function rulesDecide(input: DecideInput): Decision {
   }
 
   if (
-    /\b(flight|flights|airfare|airline|visa|hotel chain|car hire|uber|bolt to airport)\b/i.test(
+    /\b(flight|flights|airfare|airline|visa|hotel chain)\b/i.test(
       lower,
     )
   ) {
@@ -202,8 +202,8 @@ export function replyForIntent(intent: GuestIntent): string | null {
       );
     case "holiday_expand":
       return (
-        "Love that energy — full holiday (flights → stay → experiences) is the north star.\n\n" +
-        "Right now I book the *short stay* rock-solid. Drop your city + dates and I’ll lock the pillow first; we’ll layer flights next."
+        "That belongs in this same chat once the connector is live — I won’t invent a flight, car, or table.\n\n" +
+        "What books today is the *short stay*. Drop a city and dates."
       );
     case "out_of_scope":
       return (

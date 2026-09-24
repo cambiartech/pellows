@@ -57,9 +57,11 @@ There is **no** custom “Pellows webview SDK.” Mono’s bank link UI is a **F
 - Flutterwave keys + confirm WA message  
 - `pellows.stay` / `.xyz` DNS  
 
-### Phase C — Holiday OS modules
-Same agent tools, new domains: `search_flights`, `search_experiences`, itinerary hold.  
-Inventory adapters (Amadeus / local OTAs / Realcorp) behind the same invoke plane.
+### Phase C — Everywhere you chat
+Same thread, more connectors: stays (live) → cars, food, flights.  
+Each connector is local to match, and only the live one hits search/LLM/DB.  
+Shared hold + pay (`invokeTool`) so WhatsApp, web, and later Muse/agentic checkout stay one pipeline.  
+Inventory adapters (local fleets, restaurants, Amadeus, Realcorp) plug in behind that plane — never inside the stay hot path.
 
 ### Phase D — LLM storefront
 Hardened OpenAPI + ChatGPT Actions / Custom GPT + Gemini — not just `/llms.txt`.
@@ -68,4 +70,4 @@ Hardened OpenAPI + ChatGPT Actions / Custom GPT + Gemini — not just `/llms.txt
 
 ## Guest promise
 
-> Random text is fine. We show we’re listening (typing). We route with confidence. We only offer **live** inventory. We never invent a room. When you ask for a flight today, we say: pillow first — holiday next.
+> Random text is fine. We show we’re listening (typing). We route with confidence. We only offer **live** inventory. We never invent a room, a car, or a meal. Stays book now; other connectors answer instantly until their inventory is real.

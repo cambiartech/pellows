@@ -11,12 +11,12 @@ const SOURCES = [
   {
     id: "airbnb",
     label: "Airbnb",
-    blurb: "Paste listing URL + iCal.",
+    blurb: "URL + iCal. Keeps who is already in.",
   },
   {
     id: "booking",
     label: "Booking.com",
-    blurb: "Paste listing URL + iCal.",
+    blurb: "URL + iCal. Keeps who is already in.",
   },
   {
     id: "csv",
@@ -26,7 +26,7 @@ const SOURCES = [
   {
     id: "realcorp",
     label: "Realcorp",
-    blurb: "Waiting on their API.",
+    blurb: "Pull rooms, rates, photos. Add a markup.",
   },
   {
     id: "manual",
@@ -48,6 +48,11 @@ export default function ImportHubPage() {
   const [listingId, setListingId] = useState("");
   const [icalUrl, setIcalUrl] = useState("");
   const [csvText, setCsvText] = useState("");
+  const [tenantId, setTenantId] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const [connected, setConnected] = useState(false);
+  const [useSourcePrice, setUseSourcePrice] = useState(true);
+  const [markupPercent, setMarkupPercent] = useState("10");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +72,16 @@ export default function ImportHubPage() {
       }
     }
     setReady(true);
+    const linkRes = await fetch("/api/v1/imports/realcorp");
+    if (linkRes.ok) {
+      const linkData = await linkRes.json();
+      if (linkData.link) {
+        setTenantId(linkData.link.tenantId || "");
+        setConnected(Boolean(linkData.link.connected));
+        setUseSourcePrice(linkData.link.useSourcePrice !== false);
+        setMarkupPercent(String(linkData.link.markupPercent ?? 0));
+      }
+    }
   }, [router, listingId]);
 
   useEffect(() => {
@@ -115,6 +130,40 @@ export default function ImportHubPage() {
       setMsg(`Calendar synced — ${data.blocksImported} busy range(s).`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "iCal sync failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function syncRealcorp() {
+    setBusy(true);
+    setError(null);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/v1/imports/realcorp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenantId: tenantId.trim() || undefined,
+          ...(accessToken.trim() ? { accessToken: accessToken.trim() } : {}),
+          useSourcePrice,
+          markupPercent: useSourcePrice ? 0 : Number(markupPercent) || 0,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Realcorp sync failed");
+      if (data.status === "saved_pending_api") {
+        setMsg(data.message);
+      } else {
+        setMsg(
+          data.published
+            ? `Realcorp: ${data.created} new, ${data.updated} updated. ${data.published} went live because this workspace is already live.`
+            : `Realcorp: ${data.created} new, ${data.updated} updated. New rooms stay drafts until you Go LIVE. After that, later apartments publish on their own.`,
+        );
+        await load();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Realcorp sync failed");
     } finally {
       setBusy(false);
     }
@@ -199,12 +248,69 @@ export default function ImportHubPage() {
         </div>
 
         {source === "realcorp" && (
-          <div className="mt-6 rounded-2xl border border-black/10 bg-white/80 p-5 text-sm text-[var(--muted)]">
-            <p className="font-semibold text-[var(--ink)]">Waiting on Realcorp API</p>
-            <p className="mt-2">
-              Brief is in <code className="text-[var(--ink)]">docs/IMPORT_APIS.md</code>. Use
-              CSV or Airbnb/Booking until then.
+          <div className="mt-6 space-y-4 rounded-2xl border border-black/10 bg-white/80 p-5">
+            <p className="text-sm font-semibold text-[var(--ink)]">
+              Realcorp shortlets
             </p>
+            <p className="text-sm text-[var(--muted)]">
+              A Realcorp workspace is listed only if that tenant turns Pellows
+              on. Paste their tenant id and connection token. Other tenants stay
+              off. The first rooms are drafts until you Go LIVE. After that, a
+              new apartment they post shows up here on its own. If you don’t
+              want guests to see the ERP rate, add a markup.
+            </p>
+            <label className="block text-sm">
+              <span className="auth-label">Realcorp tenant id</span>
+              <input
+                className="auth-input mt-2"
+                value={tenantId}
+                onChange={(e) => setTenantId(e.target.value)}
+                placeholder="Their workspace id"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="auth-label">
+                Connection token{connected ? " · already saved" : ""}
+              </span>
+              <input
+                type="password"
+                autoComplete="off"
+                className="auth-input mt-2"
+                value={accessToken}
+                onChange={(e) => setAccessToken(e.target.value)}
+                placeholder={connected ? "Paste a new token to replace it" : "From Realcorp after they opt in"}
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
+              <input
+                type="checkbox"
+                checked={useSourcePrice}
+                onChange={(e) => setUseSourcePrice(e.target.checked)}
+              />
+              Use their nightly rate
+            </label>
+            {!useSourcePrice && (
+              <label className="block text-sm">
+                <span className="auth-label">Your markup %</span>
+                <input
+                  className="auth-input mt-2"
+                  inputMode="decimal"
+                  value={markupPercent}
+                  onChange={(e) => setMarkupPercent(e.target.value)}
+                />
+                <span className="mt-1 block text-xs text-[var(--muted)]">
+                  Added on top of their rate before a guest sees it.
+                </span>
+              </label>
+            )}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void syncRealcorp()}
+              className="btn-pill btn-primary w-full disabled:opacity-50"
+            >
+              {busy ? "Syncing…" : "Save and sync"}
+            </button>
           </div>
         )}
 

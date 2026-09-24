@@ -15,7 +15,7 @@ import {
   getOrCreateWaConversation,
 } from "@/lib/whatsapp";
 import { prisma } from "@/lib/db";
-import { dualPriceLabel } from "@/lib/money";
+import { optionSheetHeader, optionSheetRows } from "@/lib/agent/option-sheet";
 
 export const runtime = "nodejs";
 
@@ -85,10 +85,12 @@ export async function POST(request: Request) {
 
     const ui: {
       buttons?: { id: string; title: string }[];
+      query?: string;
       stays?: {
         id: string;
         title: string;
-        description: string;
+        price: string;
+        meta: string;
         photoUrl?: string;
       }[];
       payUrl?: string;
@@ -102,15 +104,8 @@ export async function POST(request: Request) {
       ];
     }
     if (session?.phase === "showing" && session.results.length) {
-      ui.stays = session.results.map((r, i) => {
-        const price = dualPriceLabel(r.basePrice, r.currency);
-        return {
-          id: String(i + 1),
-          title: `${i + 1}. ${(r.neighbourhood || r.city).slice(0, 22)}`,
-          description: `${price.usd || price.primary}/night`,
-          photoUrl: r.photoUrl || undefined,
-        };
-      });
+      ui.query = optionSheetHeader(session);
+      ui.stays = optionSheetRows(session.results);
     }
     if (session?.phase === "paying" && session.payUrl) {
       ui.payUrl = session.payUrl;

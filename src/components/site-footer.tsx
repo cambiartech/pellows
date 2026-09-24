@@ -4,7 +4,12 @@ import { usePathname } from "next/navigation";
 
 export function SiteFooter() {
   const pathname = usePathname();
-  if (pathname === "/chat" || pathname === "/join" || pathname === "/login") {
+  if (
+    pathname === "/chat" ||
+    pathname === "/join" ||
+    pathname === "/login" ||
+    pathname.startsWith("/admin")
+  ) {
     return null;
   }
 

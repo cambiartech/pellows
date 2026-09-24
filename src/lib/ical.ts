@@ -44,6 +44,8 @@ export function parseIcalBusyRanges(ics: string): IcalEvent[] {
     const body = block.split(/END:VEVENT/i)[0] ?? "";
     const uid = /UID:(.+)/i.exec(body)?.[1]?.trim() || `evt-${events.length}`;
     const summary = /SUMMARY:(.+)/i.exec(body)?.[1]?.trim();
+    const description = /DESCRIPTION:(.+)/i.exec(body)?.[1]?.trim();
+    const guestNote = [summary, description].filter(Boolean).join(" · ");
     const dtStartRaw =
       /DTSTART[^:]*:([^\r\n]+)/i.exec(body)?.[1]?.trim() ||
       /DTSTART;[^:]*:([^\r\n]+)/i.exec(body)?.[1]?.trim();
@@ -61,7 +63,12 @@ export function parseIcalBusyRanges(ics: string): IcalEvent[] {
     // Same-day DTSTART=DTEND (rare) → at least one night
     if (endDate <= startDate) endDate = addOneDay(startDate);
 
-    events.push({ uid, summary, startDate, endDate });
+    events.push({
+      uid,
+      summary: guestNote || undefined,
+      startDate,
+      endDate,
+    });
   }
 
   return events;

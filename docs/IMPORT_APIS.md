@@ -1,5 +1,7 @@
 # Import APIs — Airbnb, Booking.com, Realcorp & others
 
+Operators connecting rooms: [INTEGRATIONS.md](./INTEGRATIONS.md). This file is the partner plan.
+
 **Understood:** Agencies already live on Airbnb / Booking / Realcorp should **link or import**, not re-type every flat. Manual wizard is for agencies with nothing online; **APIs + importers** are for everyone else.
 
 ---
@@ -31,7 +33,7 @@ Agency **import** (their flats onto Pellows) is a **different** product: Connect
 
 **Minimum to unblock agency import (goal A):** Connectivity **or** Portability approval — Demand alone does **not** pull an agency’s own listing into our Host model.
 
-Store secrets in `.env.local` only (never commit): e.g. `BOOKING_DEMAND_CLIENT_ID`, `BOOKING_DEMAND_CLIENT_SECRET`, `AIRBNB_CLIENT_ID`, `AIRBNB_CLIENT_SECRET`, `REALCORP_API_BASE`, `REALCORP_API_KEY`.
+Store secrets in `.env.local` only (never commit): e.g. `BOOKING_DEMAND_CLIENT_ID`, `BOOKING_DEMAND_CLIENT_SECRET`, `AIRBNB_CLIENT_ID`, `AIRBNB_CLIENT_SECRET`, `REALCORP_API_BASE`, `REALCORP_CLIENT_ID`, `REALCORP_CLIENT_SECRET`. Realcorp room access is a **per-tenant token** after that workspace opts in, not `REALCORP_CLIENT_SECRET`.
 
 ---
 
@@ -100,15 +102,7 @@ All imports create **DRAFT** first; agency taps **Publish** → searchable.
 
 ## What to ask Realcorp for (brief you can send)
 
-Goal: one-click “sync my Realcorp shortlets → Pellows drafts.”
-
-**Minimum v1**
-
-1. **Auth** — tenant API key or OAuth client for Pellows (scoped per agency/tenant).
-2. **List units** — `GET /units?tenantId=` → id, title, area/neighbourhood, beds/baths/guests, amenities, nightly rate + currency, photos[], status.
-3. **Availability** — either iCal URL per unit **or** `GET /units/:id/blocks?from=&to=` (busy ranges).
-4. **Stable IDs** — `realcorpUnitId` we store on Pellows listing (idempotent re-sync).
-5. **Webhook (nice)** — `unit.updated` / `block.changed` so we don’t only poll.
+The handoff file is **[REALCORP_INTEGRATION.md](./REALCORP_INTEGRATION.md)**. Send them that. It is the endpoint, JSON, price fields, blocks, photos, and sandbox checklist Pellows already accepts.
 
 **Optional v2**
 

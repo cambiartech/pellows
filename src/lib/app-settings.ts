@@ -7,12 +7,22 @@ export type AppSettingsRow = {
   updatedAt: Date;
 };
 
+/** Warm-instance cache. Avoids a DB write on every WhatsApp turn. */
+const CACHE_MS = 15_000;
+let cached: { row: AppSettingsRow; at: number } | null = null;
+
 export async function getAppSettings(): Promise<AppSettingsRow> {
-  const row = await prisma.appSettings.upsert({
+  if (cached && Date.now() - cached.at < CACHE_MS) return cached.row;
+
+  const existing = await prisma.appSettings.findUnique({
     where: { id: "default" },
-    create: { id: "default", useLlm: true },
-    update: {},
   });
+  const row =
+    existing ??
+    (await prisma.appSettings.create({
+      data: { id: "default", useLlm: true },
+    }));
+  cached = { row, at: Date.now() };
   return row;
 }
 
@@ -20,7 +30,7 @@ export async function updateAppSettings(patch: {
   useLlm?: boolean;
   geminiModel?: string | null;
 }) {
-  return prisma.appSettings.upsert({
+  const row = await prisma.appSettings.upsert({
     where: { id: "default" },
     create: {
       id: "default",
@@ -34,4 +44,6 @@ export async function updateAppSettings(patch: {
         : {}),
     },
   });
+  cached = { row, at: Date.now() };
+  return row;
 }
